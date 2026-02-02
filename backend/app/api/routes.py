@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 
 from app.core.config import settings
+from app.core.ollama_adapter import get_adapter
 
 # Create router for API endpoints
 router = APIRouter()
@@ -54,3 +55,30 @@ async def api_status() -> dict:
             "writer": "not_implemented",
         },
     }
+
+
+@router.post("/api/test/ollama")
+async def test_ollama() -> dict:
+    """
+    Test endpoint to verify Ollama adapter works.
+    
+    Returns:
+        dict: Test result with model response
+    """
+    try:
+        adapter = get_adapter()
+        response = await adapter.generate_simple(
+            prompt="Say 'Ollama adapter working' and nothing else.",
+            enable_thinking=False,
+        )
+        return {
+            "status": "success",
+            "model": response.get("model"),
+            "response": response.get("response"),
+            "total_duration_ms": response.get("total_duration", 0) / 1_000_000,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+        }
