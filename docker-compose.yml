@@ -2,8 +2,6 @@
 # Deep Research System - Full Stack Docker Compose
 # =============================================================================
 
-version: "3.8"
-
 services:
   # ===========================================================================
   # OLLAMA - Inference Engine (GPT OSS 20B)
@@ -28,6 +26,8 @@ services:
     networks:
       - deepresearch-net
     restart: unless-stopped
+    # Auto-pull model on first start (optional - remove if you prefer manual)
+    # entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull gpt-oss-20b && wait"
 
   # ===========================================================================
   # BACKEND - FastAPI + LangGraph + SQLite
