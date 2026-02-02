@@ -27,6 +27,8 @@ services:
       - seccomp:unconfined
     volumes:
       - ollama_data:/root/.ollama
+      - ./ollama-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
     ports:
       - "11434:11434"
     environment:
