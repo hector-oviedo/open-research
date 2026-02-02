@@ -16,10 +16,18 @@ import { SessionList } from '../components/SessionList';
 import { Card } from '../components/ui/Card';
 import { useResearchStore } from '../stores/researchStore';
 import { Terminal, Cpu } from 'lucide-react';
+import { SettingsModal, type ResearchSettings } from '../components/SettingsModal';
 
 export function MissionControl() {
   const { status, finalReport } = useResearchStore();
   const [isConnected, setIsConnected] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<ResearchSettings>({
+    maxSources: 10,
+    maxIterations: 3,
+    sourceDiversity: true,
+    reportLength: 'medium',
+  });
   const reportRef = useRef<HTMLDivElement>(null);
   const isRunning = status === 'running';
   const isCompleted = status === 'completed';
@@ -45,7 +53,18 @@ export function MissionControl() {
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
       {/* Header with heartbeat indicator */}
-      <Header isConnected={isConnected} />
+      <Header 
+        isConnected={isConnected} 
+        onSettingsClick={() => setIsSettingsOpen(true)}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={setSettings}
+        initialSettings={settings}
+      />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

@@ -2,12 +2,14 @@
  * ReportViewer - Feature Component
  * 
  * Displays the final research report with markdown rendering
- * and download functionality.
+ * and download functionality (Markdown + PDF).
  */
 import { motion } from 'framer-motion';
-import { Download } from 'lucide-react';
+import { FileText, FileCode } from 'lucide-react';
+import jsPDF from 'jspdf';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
+import { SourceViewer } from './SourceViewer';
 import { useResearchStore } from '../stores/researchStore';
 
 export function ReportViewer() {
@@ -15,7 +17,7 @@ export function ReportViewer() {
 
   if (!finalReport || status !== 'completed') return null;
 
-  const handleDownload = () => {
+  const handleDownloadMarkdown = () => {
     const markdown = `# ${finalReport.title}
 
 ${finalReport.executiveSummary}
@@ -48,6 +50,88 @@ ${finalReport.sourcesUsed.map((s, i) => `${i + 1}. [${s.title}](${s.url}) - ${s.
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const maxWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    // Title
+    doc.setFontSize(20);
+    doc.setTextColor(0, 0, 0);
+    doc.text(finalReport.title, margin, y);
+    y += 15;
+
+    // Metadata
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Word Count: ${finalReport.wordCount} | Sources: ${finalReport.sourcesUsed.length}`, margin, y);
+    y += 10;
+
+    // Executive Summary
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Executive Summary', margin, y);
+    y += 8;
+    doc.setFontSize(11);
+    doc.setTextColor(50, 50, 50);
+    const summaryLines = doc.splitTextToSize(finalReport.executiveSummary, maxWidth);
+    doc.text(summaryLines, margin, y);
+    y += summaryLines.length * 6 + 10;
+
+    // Sections
+    finalReport.sections.forEach((section) => {
+      // Check if we need a new page
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
+      }
+
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text(section.heading, margin, y);
+      y += 8;
+
+      doc.setFontSize(11);
+      doc.setTextColor(50, 50, 50);
+      const contentLines = doc.splitTextToSize(section.content, maxWidth);
+      doc.text(contentLines, margin, y);
+      y += contentLines.length * 6 + 10;
+    });
+
+    // Sources
+    if (y > 220) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Sources (${finalReport.sourcesUsed.length})`, margin, y);
+    y += 10;
+
+    doc.setFontSize(10);
+    finalReport.sourcesUsed.forEach((source, index) => {
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setTextColor(50, 50, 50);
+      const sourceText = `${index + 1}. ${source.title} (${source.reliability})`;
+      const sourceLines = doc.splitTextToSize(sourceText, maxWidth);
+      doc.text(sourceLines, margin, y);
+      y += sourceLines.length * 5 + 3;
+      
+      doc.setTextColor(100, 100, 100);
+      const urlLines = doc.splitTextToSize(source.url, maxWidth);
+      doc.text(urlLines, margin + 5, y);
+      y += urlLines.length * 4 + 5;
+    });
+
+    doc.save(`${finalReport.title.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -59,9 +143,13 @@ ${finalReport.sourcesUsed.map((s, i) => `${i + 1}. [${s.title}](${s.url}) - ${s.
         subtitle={`${finalReport.wordCount} words • ${finalReport.sourcesUsed.length} sources`}
         headerAction={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={handleDownload}>
-              <Download className="w-4 h-4 mr-2" />
-              Download
+            <Button variant="secondary" size="sm" onClick={handleDownloadPDF}>
+              <FileText className="w-4 h-4 mr-2" />
+              PDF
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleDownloadMarkdown}>
+              <FileCode className="w-4 h-4 mr-2" />
+              Markdown
             </Button>
           </div>
         }
@@ -88,37 +176,7 @@ ${finalReport.sourcesUsed.map((s, i) => `${i + 1}. [${s.title}](${s.url}) - ${s.
 
         {/* Sources */}
         <div className="mt-8 pt-6 border-t border-slate-800">
-          <h4 className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider">
-            Sources ({finalReport.sourcesUsed.length})
-          </h4>
-          <div className="space-y-2">
-            {finalReport.sourcesUsed.map((source, index) => (
-              <a
-                key={index}
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors group"
-              >
-                <span className="text-slate-500 font-mono text-sm">{index + 1}.</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-blue-400 group-hover:text-blue-300 truncate">
-                    {source.title}
-                  </p>
-                  <p className="text-xs text-slate-500 truncate">{source.url}</p>
-                </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  source.reliability === 'high' 
-                    ? 'bg-emerald-500/20 text-emerald-400'
-                    : source.reliability === 'medium'
-                      ? 'bg-amber-500/20 text-amber-400'
-                      : 'bg-slate-700 text-slate-400'
-                }`}>
-                  {source.reliability}
-                </span>
-              </a>
-            ))}
-          </div>
+          <SourceViewer sources={finalReport.sourcesUsed} />
         </div>
 
         {/* Confidence Assessment */}
