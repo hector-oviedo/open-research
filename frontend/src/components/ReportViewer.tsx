@@ -7,6 +7,8 @@
 import { motion } from 'framer-motion';
 import { FileText, FileCode } from 'lucide-react';
 import jsPDF from 'jspdf';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { SourceViewer } from './SourceViewer';
@@ -167,7 +169,11 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
           <h4 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
             Executive Summary
           </h4>
-          <p className="text-slate-300 leading-relaxed">{executiveSummary}</p>
+          <div className="prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {executiveSummary}
+            </ReactMarkdown>
+          </div>
         </div>
 
         {/* Sections */}
@@ -176,7 +182,9 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
             <div key={index} className="border-b border-slate-800 pb-6 last:border-0">
               <h4 className="text-lg font-semibold text-white mb-3">{section.heading}</h4>
               <div className="prose prose-invert prose-sm max-w-none">
-                <p className="text-slate-300 whitespace-pre-wrap">{section.content}</p>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {section.content}
+                </ReactMarkdown>
               </div>
             </div>
           ))}
@@ -190,7 +198,11 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
         {/* Confidence Assessment */}
         <div className="mt-6 p-4 bg-slate-800/30 rounded-lg">
           <h4 className="text-sm font-medium text-slate-400 mb-2">Confidence Assessment</h4>
-          <p className="text-sm text-slate-300">{confidenceAssessment}</p>
+          <div className="prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {confidenceAssessment}
+            </ReactMarkdown>
+          </div>
         </div>
       </Card>
     </motion.div>
