@@ -154,7 +154,11 @@ curl -X POST http://localhost:8000/api/test/graph
 
 # 7. Test Source Finder Agent
 curl -X POST http://localhost:8000/api/test/finder
-# Response: {"status":"success","sources_count":10,...}}
+# Response: {"status":"success","sources_count":10,...}
+
+# 8. Test Summarizer Agent
+curl -X POST http://localhost:8000/api/test/summarizer
+# Response: {"status":"success","key_facts_count":5,...}
 ```
 
 ### Verify GPU is Working
@@ -297,10 +301,11 @@ curl http://localhost:11434/api/tags | grep gpt-oss
 
 **Latest Updates:**
 - ✅ Phase 2 Complete: Planner Agent + LangGraph setup working
-- ✅ Phase 3 Progress: Source Finder Agent complete
+- ✅ Phase 3 Progress: Source Finder ✅, Summarizer ✅ complete
 - ✅ Source Finder: Discovers 10 diverse sources via DuckDuckGo
+- ✅ Summarizer: 10:1 compression with key facts extraction
 - ✅ All Libraries Up-to-Date (verified Feb 2026)
-- 🔄 Phase 3 Next: Summarizer Agent
+- 🔄 Phase 3 Next: Reviewer Agent
 
 See `/agent/PLAN.md` for detailed execution roadmap.
 
