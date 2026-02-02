@@ -1,15 +1,25 @@
 # =============================================================================
-# Frontend Dockerfile - Vite + React + TypeScript
+# Frontend Dockerfile - Vite + React + TypeScript (Ubuntu-based)
 # =============================================================================
 
-FROM node:20-slim
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Node.js 20 and curl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify node installation
+RUN node --version && npm --version
 
 # Set working directory
 WORKDIR /app
-
-# Install curl for health checks
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./

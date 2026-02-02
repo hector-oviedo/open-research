@@ -1,14 +1,23 @@
 # =============================================================================
 # Deep Research System - Full Stack Docker Compose
 # =============================================================================
+# For ROCm (AMD GPU) support, make sure you have rocm drivers installed on host
 
 services:
   # ===========================================================================
-  # OLLAMA - Inference Engine (GPT OSS 20B)
+  # OLLAMA - Inference Engine (GPT OSS 20B) with ROCm
   # ===========================================================================
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:rocm
     container_name: deepresearch-ollama
+    # ROCm devices for AMD GPU support
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    # Alternative: use render group (uncomment if needed)
+    # group_add:
+    #   - "${RENDER_GROUP:-render}"
+    #   - "${VIDEO_GROUP:-video}"
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -17,6 +26,9 @@ services:
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_NUM_PARALLEL=1
       - OLLAMA_MAX_LOADED_MODELS=1
+      # ROCm specific settings
+      - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-}
+      - AMD_SERIALIZE_KERNEL=1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
@@ -26,8 +38,6 @@ services:
     networks:
       - deepresearch-net
     restart: unless-stopped
-    # Auto-pull model on first start (optional - remove if you prefer manual)
-    # entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull gpt-oss-20b && wait"
 
   # ===========================================================================
   # BACKEND - FastAPI + LangGraph + SQLite

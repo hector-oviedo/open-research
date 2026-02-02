@@ -1,20 +1,31 @@
 # =============================================================================
-# Backend Dockerfile - FastAPI + LangGraph
+# Backend Dockerfile - FastAPI + LangGraph (Ubuntu-based)
 # =============================================================================
 
-FROM python:3.12-slim
+FROM ubuntu:22.04
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
+# Prevent interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# Install Python and system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3-pip \
+    python3.12-venv \
     curl \
     gcc \
     && rm -rf /var/lib/apt/lists/*
+
+# Create symlinks for python
+RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3 /usr/bin/python
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip
 
 # Install uv for fast Python package management
 RUN pip install uv
