@@ -1,6 +1,13 @@
 """
 Deep Research System - Backend API
 FastAPI + LangGraph backend for multi-agent research orchestration.
+
+Architecture:
+- main.py: Application entry point, mounts routers
+- app/api/: HTTP endpoints (routers)
+- app/core/: Business logic (adapters, config)
+- app/agents/: LangGraph agent implementations
+- app/models/: Data models and state definitions
 """
 
 from fastapi import FastAPI
@@ -8,12 +15,18 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
+# Import API routers
+from app.api.routes import router as api_router
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Deep Research API",
     description="Multi-Agent Deep Research System with LangGraph & Ollama",
     version="0.1.0",
 )
+
+# Mount API routes
+app.include_router(api_router)
 
 # Mount docs directory for static files
 docs_path = Path(__file__).parent / "docs"
@@ -43,34 +56,6 @@ async def custom_docs() -> FileResponse:
     """Serve custom API documentation."""
     docs_file = Path(__file__).parent / "docs" / "index.html"
     return FileResponse(str(docs_file))
-
-
-@app.get("/health")
-async def health_check() -> dict:
-    """Health check endpoint for Docker and monitoring."""
-    return {
-        "status": "healthy",
-        "version": "0.1.0",
-        "services": {
-            "api": "online",
-        },
-    }
-
-
-@app.get("/api/status")
-async def api_status() -> dict:
-    """Detailed API status with all connected services."""
-    return {
-        "status": "operational",
-        "version": "0.1.0",
-        "features": {
-            "planner": "not_implemented",
-            "source_finder": "not_implemented",
-            "summarizer": "not_implemented",
-            "reviewer": "not_implemented",
-            "writer": "not_implemented",
-        },
-    }
 
 
 if __name__ == "__main__":

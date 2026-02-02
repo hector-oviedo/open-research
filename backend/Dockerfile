@@ -26,18 +26,18 @@ RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
+# Create virtual environment OUTSIDE of /app (which gets mounted in dev)
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
 # Set work directory
 WORKDIR /app
-
-# Create virtual environment
-RUN python3 -m venv /app/.venv
-ENV PATH="/app/.venv/bin:${PATH}"
 
 # Copy dependency files
 COPY pyproject.toml ./
 
 # Install dependencies using uv into the virtual environment
-RUN uv pip install -e .
+RUN uv pip install --system -e . || pip install -e .
 
 # Copy project files
 COPY . .
@@ -52,5 +52,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Default command (overridden in docker-compose for dev mode)
+# Default command
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
