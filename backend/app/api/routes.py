@@ -14,6 +14,7 @@ from app.core.checkpointer import get_checkpointer
 from app.core.graph import get_research_graph
 from app.agents.planner import get_planner
 from app.agents.finder import get_finder
+from app.agents.summarizer import get_summarizer
 from app.models.state import ResearchState, create_initial_state, get_progress_percent
 
 # Create router for API endpoints
@@ -251,6 +252,67 @@ async def test_finder() -> dict:
                 for s in sources[:5]  # Show first 5
             ],
             "message": f"Finder discovered {len(sources)} sources",
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
+@router.post("/api/test/summarizer")
+async def test_summarizer() -> dict:
+    """
+    Test endpoint to verify Summarizer Agent works.
+    
+    Returns:
+        dict: Test result with compressed summary
+    """
+    try:
+        summarizer = get_summarizer()
+        
+        # Sample long content about quantum computing
+        sample_content = """
+        Quantum computing has seen remarkable breakthroughs in 2024. In February, researchers at MIT 
+        demonstrated a 1000-qubit processor with 99.9% fidelity, marking a significant milestone in 
+        the race toward fault-tolerant quantum computers. This breakthrough, published in Nature, 
+        shows that superconducting qubits can maintain coherence for up to 500 microseconds, 
+        a 10x improvement over previous records.
+        
+        Meanwhile, IBM announced their new Quantum System Two, featuring 133 qubits and improved 
+        error correction capabilities. The system, unveiled at their annual Quantum Summit, 
+        represents a $100 million investment in quantum infrastructure. IBM claims this system 
+        can solve certain optimization problems 1000x faster than classical supercomputers.
+        
+        Google Quantum AI team also reported progress in quantum error correction. Their latest 
+        research, appearing in Science, demonstrates logical qubit lifetimes exceeding 1 second 
+        using surface code error correction. This is crucial for practical quantum computing.
+        
+        Commercial applications are emerging too. Volkswagen announced partnerships with quantum 
+        startups to optimize traffic flow in major cities. Early trials in Lisbon showed 15% 
+        reduction in traffic congestion using quantum algorithms.
+        """
+        
+        result = await summarizer.summarize(
+            content=sample_content,
+            sub_question="What were the major quantum computing breakthroughs in 2024?",
+            source_title="Quantum Computing 2024 Review",
+            source_url="https://example.com/quantum-2024",
+        )
+        
+        findings = result.get("findings", {})
+        
+        return {
+            "status": "success",
+            "sub_question": "What were the major quantum computing breakthroughs in 2024?",
+            "summary": findings.get("summary", "")[:300] + "...",
+            "key_facts_count": len(findings.get("key_facts", [])),
+            "compression_ratio": findings.get("compression_ratio", 0),
+            "relevance_score": findings.get("relevance_score", 0),
+            "word_count": findings.get("word_count", {}),
+            "message": "Summarizer completed successfully",
         }
     except Exception as e:
         import traceback
