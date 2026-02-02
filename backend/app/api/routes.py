@@ -15,6 +15,7 @@ from app.core.graph import get_research_graph
 from app.agents.planner import get_planner
 from app.agents.finder import get_finder
 from app.agents.summarizer import get_summarizer
+from app.agents.reviewer import get_reviewer
 from app.models.state import ResearchState, create_initial_state, get_progress_percent
 
 # Create router for API endpoints
@@ -55,9 +56,9 @@ async def api_status() -> dict:
         "version": "0.1.0",
         "features": {
             "planner": "implemented",
-            "source_finder": "not_implemented",
-            "summarizer": "not_implemented",
-            "reviewer": "not_implemented",
+            "source_finder": "implemented",
+            "summarizer": "implemented",
+            "reviewer": "implemented",
             "writer": "not_implemented",
         },
     }
@@ -313,6 +314,59 @@ async def test_summarizer() -> dict:
             "relevance_score": findings.get("relevance_score", 0),
             "word_count": findings.get("word_count", {}),
             "message": "Summarizer completed successfully",
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
+@router.post("/api/test/reviewer")
+async def test_reviewer() -> dict:
+    """
+    Test endpoint to verify Reviewer Agent works.
+    
+    Returns:
+        dict: Test result with gap analysis
+    """
+    try:
+        reviewer = get_reviewer()
+        
+        # Sample plan and findings with intentional gaps
+        plan = [
+            {"id": "sq-001", "question": "What are quantum computing hardware advances?"},
+            {"id": "sq-002", "question": "What are quantum algorithms breakthroughs?"},
+            {"id": "sq-003", "question": "What are commercial applications?"},
+        ]
+        
+        findings = [
+            {
+                "sub_question_id": "sq-001",
+                "summary": "MIT demonstrated 1000-qubit processor with 99.9% fidelity in February 2024.",
+            },
+            # sq-002 and sq-003 have NO findings - intentional gap!
+        ]
+        
+        result = await reviewer.review(
+            plan=plan,
+            findings=findings,
+            iteration=2,
+            max_iterations=10,
+        )
+        
+        gap_report = result.get("gap_report", {})
+        
+        return {
+            "status": "success",
+            "has_gaps": gap_report.get("has_gaps"),
+            "gaps_count": len(gap_report.get("gaps", [])),
+            "gaps": gap_report.get("gaps", [])[:2],  # Show first 2
+            "recommendations_count": len(gap_report.get("recommendations", [])),
+            "confidence": gap_report.get("confidence"),
+            "message": f"Reviewer found {len(gap_report.get('gaps', []))} gaps",
         }
     except Exception as e:
         import traceback

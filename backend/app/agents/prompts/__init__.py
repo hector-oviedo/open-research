@@ -59,3 +59,4 @@ def list_available_prompts() -> list[str]:
 PLANNER_PROMPT = load_prompt("planner.md")
 FINDER_PROMPT = load_prompt("finder.md")
 SUMMARIZER_PROMPT = load_prompt("summarizer.md")
+REVIEWER_PROMPT = load_prompt("reviewer.md")
