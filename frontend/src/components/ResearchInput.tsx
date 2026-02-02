@@ -3,7 +3,7 @@
  * 
  * Input form for starting new research with query input.
  */
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Sparkles } from 'lucide-react';
 import { Button } from './ui/Button';
@@ -17,18 +17,31 @@ export function ResearchInput() {
   const { startResearch, isLoading } = useResearch();
   const { connect } = useAgentStream();
   const { status, sessionId } = useResearchStore();
+  const isRunning = status === 'running';
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!query.trim() || isLoading) return;
 
     const newSessionId = await startResearch(query);
     if (newSessionId) {
       connect(newSessionId);
     }
-  };
+  }, [query, isLoading, startResearch, connect]);
 
-  const isRunning = status === 'running';
+  // Keyboard shortcut: Ctrl+Enter to submit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (!isRunning && query.trim()) {
+          handleSubmit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSubmit, isRunning, query]);
 
   return (
     <motion.div

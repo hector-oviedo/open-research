@@ -12,9 +12,12 @@ A production-grade local deep research application using multi-agent orchestrati
 The system features a **Mission Control Dashboard** where you can:
 - Enter any research query
 - Watch 5 AI agents work in real-time
-- See live event streaming
+- See live event streaming via SSE
 - Monitor progress with visual indicators
 - Stop research at any time
+- Download final reports as Markdown
+
+**Access:** http://localhost:5173
 
 ## Architecture
 
@@ -27,6 +30,13 @@ The system features a **Mission Control Dashboard** where you can:
 │   │Research Input│  │Agent Pipeline│  │ Event Log    │                 │
 │   │  (Zustand)   │  │ (5 Agents)   │  │   (SSE)      │                 │
 │   └──────────────┘  └──────────────┘  └──────────────┘                 │
+│          │                   │                   │                      │
+│          └───────────────────┼───────────────────┘                      │
+│                              │                                          │
+│                    ┌─────────┴─────────┐                                │
+│                    │  Report Viewer    │                                │
+│                    │ (Markdown + DL)   │                                │
+│                    └───────────────────┘                                │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     │ HTTP / SSE
@@ -58,6 +68,27 @@ The system features a **Mission Control Dashboard** where you can:
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+### LangGraph Workflow
+
+```mermaid
+graph TD
+    A[User Query] --> B[Planner]
+    B -->|Sub-questions| C[Finder]
+    C -->|Sources| D[Summarizer]
+    D -->|Findings| E[Reviewer]
+    E -->|Gaps detected & iter < max| B
+    E -->|Approved| F[Writer]
+    F --> G[Final Report]
+    
+    style A fill:#1e293b,stroke:#3b82f6,color:#fff
+    style B fill:#1e293b,stroke:#3b82f6,color:#fff
+    style C fill:#1e293b,stroke:#10b981,color:#fff
+    style D fill:#1e293b,stroke:#f59e0b,color:#fff
+    style E fill:#1e293b,stroke:#8b5cf6,color:#fff
+    style F fill:#1e293b,stroke:#ec4899,color:#fff
+    style G fill:#064e3b,stroke:#10b981,color:#fff
+```
+
 ### The 5 Agents
 
 | Agent | Role | Description | Color |
@@ -76,13 +107,13 @@ The system features a **Mission Control Dashboard** where you can:
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| **Phase 0** | ✅ Complete | Infrastructure: Docker, GPU support, auto-download |
-| **Phase 1** | ✅ Complete | Backend Core: Config, adapter, state, checkpointer |
+| **Phase 0** | ✅ Complete | Infrastructure: Docker, GPU support (Strix Halo), auto-download |
+| **Phase 1** | ✅ Complete | Backend Core: FastAPI, config, Ollama adapter, SQLite checkpointer |
 | **Phase 2** | ✅ Complete | Planner Agent: Query decomposition + LangGraph setup |
-| **Phase 3** | ✅ Complete | All 5 Agents + Full Graph Assembly |
-| **Phase 4** | ✅ Complete | Streaming & Interruption: SSE, stop/resume |
-| **Phase 5** | ✅ Complete | **Frontend Dashboard: Mission Control UI** |
-| **Phase 6** | ⏳ Pending | Integration & Polish |
+| **Phase 3** | ✅ Complete | All 5 Agents + Full Graph Assembly with conditional routing |
+| **Phase 4** | ✅ Complete | Streaming & Interruption: SSE endpoints, stop/resume |
+| **Phase 5** | ✅ Complete | Frontend Dashboard: Mission Control UI with real-time updates |
+| **Phase 6** | ✅ Complete | **Integration & Polish: Report viewer, sessions, error boundaries** |
 
 ---
 
@@ -174,17 +205,28 @@ docker compose down -v
 
 1. Open http://localhost:5173
 2. Enter your research query (e.g., "Latest AI developments in healthcare 2024")
-3. Click **"Start Research"**
+3. Click **"Start Research"** or press **Ctrl+Enter**
 4. Watch the agents work in real-time!
 
 ### 2. Monitor Progress
 
 - **Agent Pipeline** (left): See which agent is currently active
+- **Sessions** (left): View all research sessions with status
 - **Progress Bar** (top): Overall completion percentage
 - **Event Log** (right): Real-time SSE events from the backend
 - **Stop Button** (top-right): Cancel running research
 
-### 3. Agent States
+### 3. View Results
+
+When research completes:
+- **Report Viewer** displays the final report with:
+  - Executive Summary
+  - Detailed sections
+  - Source citations with reliability ratings
+  - Confidence assessment
+- **Download** button saves as Markdown
+
+### 4. Agent States
 
 | State | Indicator | Meaning |
 |-------|-----------|---------|
@@ -192,17 +234,11 @@ docker compose down -v
 | Running | Blue pulse | Agent actively working |
 | Completed | Green check | Agent finished successfully |
 
-### 4. Event Types
+### 5. Keyboard Shortcuts
 
-The Event Log shows:
-- `research_started` - Research session began
-- `planner_complete` - Sub-questions generated
-- `finder_complete` - Sources discovered
-- `summarizer_complete` - Content summarized
-- `reviewer_complete` - Gaps reviewed
-- `research_completed` - Final report ready
-- `heartbeat` - Keep-alive ping
-- `research_stopped` - Manually cancelled
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl + Enter` | Start research |
 
 ---
 
@@ -285,7 +321,7 @@ open-research/
 │   ├── Dockerfile
 │   └── entrypoint.sh
 │
-├── backend/                    # FastAPI Backend (Phase 3-4 ✅)
+├── backend/                    # FastAPI Backend (Phases 1-4)
 │   ├── app/
 │   │   ├── api/
 │   │   │   └── routes.py       # HTTP endpoints + SSE
@@ -309,15 +345,22 @@ open-research/
 │   ├── main.py                 # FastAPI entry
 │   └── pyproject.toml          # Dependencies (uv)
 │
-├── frontend/                   # React Frontend (Phase 5 ✅)
+├── frontend/                   # React Frontend (Phases 5-6)
 │   ├── src/
 │   │   ├── components/         # React components
-│   │   │   ├── ui/             # Atomic UI (Button, Card, Badge, Input)
+│   │   │   ├── ui/             # Atomic UI components
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── Card.tsx
+│   │   │   │   ├── Badge.tsx
+│   │   │   │   └── Input.tsx
 │   │   │   ├── ResearchInput.tsx
 │   │   │   ├── AgentStatus.tsx
 │   │   │   ├── ProgressTracker.tsx
 │   │   │   ├── TraceLog.tsx
-│   │   │   └── StopButton.tsx
+│   │   │   ├── StopButton.tsx
+│   │   │   ├── ReportViewer.tsx    # NEW: Report display
+│   │   │   ├── SessionList.tsx     # NEW: Session sidebar
+│   │   │   └── ErrorBoundary.tsx   # NEW: Error handling
 │   │   ├── hooks/              # Custom hooks
 │   │   │   ├── useAgentStream.ts   # SSE streaming
 │   │   │   └── useResearch.ts      # API operations
@@ -347,7 +390,7 @@ open-research/
 **Atomic Design Principles:**
 - **Atoms:** Button, Card, Badge, Input (pure UI)
 - **Molecules:** ResearchInput, StopButton (composed atoms)
-- **Organisms:** AgentStatus, ProgressTracker, TraceLog (complex components)
+- **Organisms:** AgentStatus, ProgressTracker, TraceLog, ReportViewer (complex features)
 - **Pages:** MissionControl (full layout)
 
 **State Management:**
@@ -356,10 +399,11 @@ open-research/
   - `useAgentStream.ts` - SSE connection handling
   - `useResearch.ts` - API calls
 
-**Styling:**
-- **Tailwind CSS:** Utility-first styling
-- **Framer Motion:** Animations and transitions
-- **Lucide React:** Consistent iconography
+**Key Features:**
+- **ReportViewer:** Displays final report with Markdown rendering and download
+- **SessionList:** Auto-refreshing sidebar showing all sessions
+- **ErrorBoundary:** Graceful error recovery with reload option
+- **Keyboard Shortcuts:** Ctrl+Enter to start research
 
 ---
 
@@ -404,30 +448,45 @@ docker compose build frontend
 docker compose up -d frontend
 ```
 
+### Backend Errors
+
+```bash
+# Check backend logs
+docker logs deepresearch-backend
+
+# Test backend directly
+curl http://localhost:8000/health
+```
+
 ---
 
 ## Development Status
 
-**Current Phase:** Phase 5 Complete - Frontend Dashboard ✅
+**🎉 PROJECT COMPLETE - All 6 Phases Delivered!**
 
-**Completed Features:**
+### Completed Features
 - ✅ **Infrastructure:** Docker, GPU support (Strix Halo), auto-download
-- ✅ **Backend Core:** FastAPI, config, Ollama adapter, SQLite checkpointer
-- ✅ **5 AI Agents:** Planner, Finder, Summarizer, Reviewer, Writer
-- ✅ **LangGraph:** Full pipeline with conditional iteration loops
-- ✅ **Streaming:** SSE endpoints for real-time progress
-- ✅ **Interruption:** Stop/resume functionality
+- ✅ **Backend Core:** FastAPI, Pydantic config, Ollama adapter, SQLite checkpointer
+- ✅ **5 AI Agents:** Planner, Finder, Summarizer, Reviewer, Writer with iteration loops
+- ✅ **LangGraph:** Complete pipeline with conditional routing
+- ✅ **Streaming:** SSE endpoints for real-time progress updates
+- ✅ **Interruption:** Stop/resume functionality with graceful shutdown
 - ✅ **Mission Control Dashboard:** React + Vite + Tailwind + Framer Motion
-  - Real-time agent visualization
-  - Progress tracking
-  - Event log streaming
-  - Responsive design
+  - Real-time agent visualization with color-coded status
+  - Progress tracking with gradient progress bar
+  - Event log streaming with icons and timestamps
+  - Report viewer with Markdown rendering and download
+  - Session list with auto-refresh
+  - Error boundaries for graceful recovery
+  - Keyboard shortcuts (Ctrl+Enter)
+  - Responsive design for all screen sizes
 
-**Phase 6 Next:** Integration & Polish
-- Session persistence in UI
-- Report viewer with markdown rendering
-- Source matrix visualization
-- Export functionality (PDF, Markdown)
+### Architecture Highlights
+- **Modular Design:** Atomic components, reusable across the app
+- **State Management:** Zustand for global state, hooks for business logic
+- **Real-time:** Server-Sent Events (SSE) for live updates
+- **Error Handling:** Error boundaries and graceful degradation
+- **GPU Acceleration:** ROCm support for AMD GPUs including Strix Halo
 
 ---
 

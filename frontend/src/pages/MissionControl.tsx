@@ -10,13 +10,16 @@ import { AgentStatus } from '../components/AgentStatus';
 import { ProgressTracker } from '../components/ProgressTracker';
 import { TraceLog } from '../components/TraceLog';
 import { StopButton } from '../components/StopButton';
+import { ReportViewer } from '../components/ReportViewer';
+import { SessionList } from '../components/SessionList';
 import { Card } from '../components/ui/Card';
 import { useResearchStore } from '../stores/researchStore';
-import { Activity, Terminal, Cpu } from 'lucide-react';
+import { Activity, Terminal, Cpu, Zap } from 'lucide-react';
 
 export function MissionControl() {
-  const { status } = useResearchStore();
+  const { status, finalReport } = useResearchStore();
   const isRunning = status === 'running';
+  const isCompleted = status === 'completed';
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
@@ -35,8 +38,8 @@ export function MissionControl() {
           
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
-              <Cpu className="w-4 h-4" />
-              <span>ROCm gfx1151</span>
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span>Powered by LangGraph + Ollama</span>
             </div>
             <StopButton />
           </div>
@@ -61,17 +64,30 @@ export function MissionControl() {
           </motion.section>
         )}
 
+        {/* Report Section (shown when completed) */}
+        {isCompleted && finalReport && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <ReportViewer />
+          </motion.section>
+        )}
+
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Agent Status */}
-          <div className="lg:col-span-1">
+          {/* Left Column - Agent Status & Sessions */}
+          <div className="space-y-6">
             <Card 
               title="Agent Pipeline" 
               subtitle="Multi-agent orchestration status"
-              className="h-full"
+              className="h-auto"
             >
               <AgentStatus />
             </Card>
+            
+            <SessionList />
           </div>
 
           {/* Right Column - Event Log */}
@@ -79,7 +95,7 @@ export function MissionControl() {
             <Card 
               title="Event Log" 
               subtitle="Real-time research events"
-              className="h-full min-h-[400px]"
+              className="h-full min-h-[500px]"
               headerAction={
                 isRunning && (
                   <div className="flex items-center gap-2 text-sm text-blue-400">
@@ -94,34 +110,40 @@ export function MissionControl() {
           </div>
         </div>
 
-        {/* System Info Footer */}
+        {/* Keyboard Shortcuts Footer */}
         <motion.footer
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
           className="mt-12 pt-8 border-t border-slate-800/50"
         >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-            <div className="flex items-center gap-3 text-slate-500">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="flex items-center gap-3 text-sm text-slate-500">
               <Terminal className="w-5 h-5" />
               <div>
-                <p className="font-medium text-slate-400">Backend API</p>
-                <p>FastAPI + LangGraph + Ollama</p>
+                <p className="font-medium text-slate-400">Backend</p>
+                <p>FastAPI + LangGraph</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-slate-500">
+            <div className="flex items-center gap-3 text-sm text-slate-500">
               <Cpu className="w-5 h-5" />
               <div>
-                <p className="font-medium text-slate-400">Inference Engine</p>
-                <p>gpt-oss:20b via ROCm</p>
+                <p className="font-medium text-slate-400">Inference</p>
+                <p>gpt-oss:20b ROCm</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-slate-500">
+            <div className="flex items-center gap-3 text-sm text-slate-500">
               <Activity className="w-5 h-5" />
               <div>
-                <p className="font-medium text-slate-400">System Status</p>
-                <p className="text-emerald-400">All systems operational</p>
+                <p className="font-medium text-slate-400">Status</p>
+                <p className="text-emerald-400">Operational</p>
               </div>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-500">
+              <kbd className="px-2 py-1 bg-slate-800 rounded text-xs">Ctrl</kbd>
+              <span>+</span>
+              <kbd className="px-2 py-1 bg-slate-800 rounded text-xs">Enter</kbd>
+              <span className="ml-1">Start Research</span>
             </div>
           </div>
         </motion.footer>
