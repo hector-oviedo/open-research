@@ -36,24 +36,24 @@ if docs_path.exists():
 
 @app.get("/", response_class=HTMLResponse)
 async def root() -> str:
-    """Root endpoint redirects to API docs."""
+    """Root endpoint redirects to custom docs."""
     return """
     <!DOCTYPE html>
     <html>
         <head>
             <title>Deep Research API</title>
-            <meta http-equiv="refresh" content="0; url=/docs" />
+            <meta http-equiv="refresh" content="0; url=/custom-docs" />
         </head>
         <body>
-            <p>Redirecting to <a href="/docs">API Documentation</a>...</p>
+            <p>Redirecting to <a href="/custom-docs">API Documentation</a>...</p>
         </body>
     </html>
     """
 
 
-@app.get("/docs", response_class=FileResponse)
+@app.get("/custom-docs", response_class=FileResponse)
 async def custom_docs() -> FileResponse:
-    """Serve custom API documentation."""
+    """Serve custom Bootstrap API documentation."""
     docs_file = Path(__file__).parent / "docs" / "index.html"
     return FileResponse(str(docs_file))
 

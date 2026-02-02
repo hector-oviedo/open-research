@@ -203,6 +203,40 @@
         <section id="endpoints" class="mb-5">
             <h3 class="mb-4"><i class="bi bi-plug me-2"></i>API Endpoints</h3>
             
+            <h5 class="mb-3 text-muted">System</h5>
+            
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-get me-3">GET</span>
+                        <code class="text-light">/health</code>
+                    </div>
+                    <p class="text-muted">Health check for Docker and monitoring</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-get me-3">GET</span>
+                        <code class="text-light">/api/status</code>
+                    </div>
+                    <p class="text-muted">Detailed API status with feature flags</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-get me-3">GET</span>
+                        <code class="text-light">/api/checkpointer/stats</code>
+                    </div>
+                    <p class="text-muted">SQLite checkpoint database statistics</p>
+                </div>
+            </div>
+
+            <h5 class="mb-3 mt-4 text-muted">Research (Phase 2+)</h5>
+            
             <div class="card endpoint-card mb-3">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
@@ -231,15 +265,6 @@
                         <code class="text-light">/research/{id}/events</code>
                     </div>
                     <p class="text-muted">Server-Sent Events stream for real-time updates</p>
-                    <div class="code-block mt-3">
-                        <span class="text-success">// SSE Event Types</span><br>
-                        event: node_start<br>
-                        data: {"node": "planner", "timestamp": "..."}<br><br>
-                        event: thinking<br>
-                        data: {"agent": "planner", "thought": "..."}<br><br>
-                        event: complete<br>
-                        data: {"report": "..."}
-                    </div>
                 </div>
             </div>
 
@@ -253,13 +278,25 @@
                 </div>
             </div>
 
+            <h5 class="mb-3 mt-4 text-muted">Testing</h5>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code class="text-light">/api/test/ollama</code>
+                    </div>
+                    <p class="text-muted">Test Ollama adapter connectivity</p>
+                </div>
+            </div>
+
             <div class="card endpoint-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
-                        <span class="method-badge method-get me-3">GET</span>
-                        <code class="text-light">/research/{id}/status</code>
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code class="text-light">/api/test/state</code>
                     </div>
-                    <p class="text-muted">Get current research session status</p>
+                    <p class="text-muted">Test ResearchState structure</p>
                 </div>
             </div>
         </section>
