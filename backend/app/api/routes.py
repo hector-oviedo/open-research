@@ -181,39 +181,62 @@ async def test_planner() -> dict:
 @router.post("/api/test/graph")
 async def test_graph() -> dict:
     """
-    Test endpoint to verify LangGraph works end-to-end.
+    Test endpoint to verify Full Graph works end-to-end.
     
-    Runs a complete research session through the graph.
+    Runs all 5 agents: Planner → Finder → Summarizer → Reviewer → Writer
+    Note: This may take 5-10 minutes due to multiple LLM calls (20B model).
     
     Returns:
-        dict: Test result with final state
+        dict: Complete research result with final report
     """
     try:
         import uuid
+        import asyncio
         
-        graph = get_research_graph()
+        graph = get_research_graph(max_iterations=1)  # Limit to 1 iteration for testing
         session_id = f"test-{uuid.uuid4().hex[:8]}"
         
-        result = await graph.run(
-            query="Recent AI developments in healthcare",
-            session_id=session_id,
+        # Run with timeout
+        result = await asyncio.wait_for(
+            graph.run(
+                query="Recent AI developments in healthcare",
+                session_id=session_id,
+            ),
+            timeout=600.0  # 10 minute timeout for full graph
         )
         
         plan = result.get("plan", [])
+        sources = result.get("sources", [])
+        findings = result.get("findings", [])
+        gaps = result.get("gaps", {})
+        final_report = result.get("final_report", {})
         
         return {
             "status": "success",
             "session_id": session_id,
             "query": result.get("query"),
-            "sub_questions_count": len(plan),
-            "sub_questions": [
-                {
-                    "id": sq.get("id"),
-                    "question": sq.get("question"),
-                }
-                for sq in plan[:3]  # Show first 3
-            ],
-            "message": f"Graph executed successfully with {len(plan)} sub-questions",
+            "iterations": result.get("iteration", 0),
+            "flow": "Planner → Finder → Summarizer → Reviewer → Writer",
+            "results": {
+                "sub_questions_count": len(plan),
+                "sources_discovered": len(sources),
+                "findings_summarized": len(findings),
+                "gaps_detected": len(gaps.get("gaps", [])),
+                "gaps_has_issues": gaps.get("has_gaps", False),
+            },
+            "final_report": {
+                "title": final_report.get("title", "N/A"),
+                "word_count": final_report.get("word_count", 0),
+                "sections_count": len(final_report.get("sections", [])),
+                "sources_cited": len(final_report.get("sources_used", [])),
+            },
+            "message": f"Full graph executed: {len(plan)} questions → {len(sources)} sources → report",
+        }
+    except asyncio.TimeoutError:
+        return {
+            "status": "timeout",
+            "message": "Graph execution timed out (10 min). Model may be too slow.",
+            "note": "Individual agent tests work: /api/test/planner, /api/test/finder, etc.",
         }
     except Exception as e:
         import traceback

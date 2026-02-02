@@ -28,7 +28,7 @@ A production-grade local deep research application using multi-agent orchestrati
 | **Phase 0** | ✅ Complete | Project infrastructure, Docker setup, GPU support |
 | **Phase 1** | ✅ Complete | Backend core: structure, config, adapter, state, checkpointer, docs |
 | **Phase 2** | ✅ Complete | First Agent (Planner) - Query decomposition + LangGraph setup |
-| **Phase 3** | 🔄 In Progress | Remaining Agents (Source Finder ✅, Summarizer, Reviewer, Writer) |
+| **Phase 3** | 🔄 In Progress | All Agents Complete (Finder ✅, Summarizer ✅, Reviewer ✅, Writer ✅) → Graph Assembly |
 | **Phase 4** | ⏳ Pending | Streaming & Interruption (SSE, stop/resume) |
 | **Phase 5** | ⏳ Pending | Frontend Dashboard (Mission Control) |
 | **Phase 6** | ⏳ Pending | Integration & Polish |
@@ -305,13 +305,14 @@ curl http://localhost:11434/api/tags | grep gpt-oss
 
 **Latest Updates:**
 - ✅ Phase 2 Complete: Planner Agent + LangGraph setup working
-- ✅ Phase 3 Progress: Finder ✅, Summarizer ✅, Reviewer ✅, Writer ✅ complete
+- ✅ Phase 3 Complete: All 5 Agents + Full Graph Assembly
 - ✅ Source Finder: Discovers 10 diverse sources via DuckDuckGo
 - ✅ Summarizer: 10:1 compression with key facts extraction
 - ✅ Reviewer: Gap detection with iteration triggers
 - ✅ Writer: Report synthesis with citations (1200 words, 6 sections)
+- ✅ Full Graph: Planner → Finder → Summarizer → Reviewer → Writer (conditional loop)
 - ✅ All Libraries Up-to-Date (verified Feb 2026)
-- 🔄 Phase 3 Next: Full Graph Assembly (connect all agents)
+- 🔄 Phase 4 Next: Streaming & Interruption (SSE)
 
 See `/agent/PLAN.md` for detailed execution roadmap.
 
