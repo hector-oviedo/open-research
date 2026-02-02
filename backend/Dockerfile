@@ -1,43 +1,43 @@
 # =============================================================================
-# Backend Dockerfile - FastAPI + LangGraph (Ubuntu-based)
+# Backend Dockerfile - FastAPI + LangGraph (Ubuntu 24.04 + uv)
 # =============================================================================
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    UV_NO_CACHE=1
 
-# Install Python and system dependencies
+# Install Python 3.12 and curl
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
-    python3-pip \
     python3.12-venv \
     curl \
-    gcc \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Create symlinks for python
 RUN ln -sf /usr/bin/python3.12 /usr/bin/python3 \
     && ln -sf /usr/bin/python3 /usr/bin/python
 
-# Upgrade pip
-RUN python -m pip install --upgrade pip
-
-# Install uv for fast Python package management
-RUN pip install uv
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
 
 # Set work directory
 WORKDIR /app
 
+# Create virtual environment
+RUN python3 -m venv /app/.venv
+ENV PATH="/app/.venv/bin:${PATH}"
+
 # Copy dependency files
 COPY pyproject.toml ./
 
-# Install dependencies using uv
-RUN uv pip install --system -e .
+# Install dependencies using uv into the virtual environment
+RUN uv pip install -e .
 
 # Copy project files
 COPY . .

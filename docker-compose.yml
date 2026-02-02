@@ -1,7 +1,8 @@
 # =============================================================================
 # Deep Research System - Full Stack Docker Compose
 # =============================================================================
-# For ROCm (AMD GPU) support, make sure you have rocm drivers installed on host
+# For ROCm (AMD GPU) support on Strix Halo (RDNA 3.5 / gfx1151)
+# Based on: https://github.com/hector-oviedo/comfyui-strix-docker
 
 services:
   # ===========================================================================
@@ -10,14 +11,20 @@ services:
   ollama:
     image: ollama/ollama:rocm
     container_name: deepresearch-ollama
+    privileged: true  # REQUIRED for Strix Halo GPU access
+    restart: unless-stopped
     # ROCm devices for AMD GPU support
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
-    # Alternative: use render group (uncomment if needed)
-    # group_add:
-    #   - "${RENDER_GROUP:-render}"
-    #   - "${VIDEO_GROUP:-video}"
+    # GPU access groups - use .env for GIDs
+    group_add:
+      - "${VIDEO_GID:-44}"
+      - "${RENDER_GID:-991}"
+    # Shared memory and security for ROCm
+    ipc: host
+    security_opt:
+      - seccomp:unconfined
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -26,8 +33,9 @@ services:
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_NUM_PARALLEL=1
       - OLLAMA_MAX_LOADED_MODELS=1
-      # ROCm specific settings
-      - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-}
+      # Strix Halo (RDNA 3.5) specific settings
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1
+      - HIP_VISIBLE_DEVICES=0
       - AMD_SERIALIZE_KERNEL=1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
@@ -37,7 +45,6 @@ services:
       start_period: 60s
     networks:
       - deepresearch-net
-    restart: unless-stopped
 
   # ===========================================================================
   # BACKEND - FastAPI + LangGraph + SQLite
@@ -57,9 +64,9 @@ services:
       - BACKEND_PORT=8000
       - DATABASE_PATH=/app/data/research.db
       - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_MODEL=gpt-oss-20b
+      - OLLAMA_MODEL=gpt-oss:20b
       - LLM_BASE_URL=http://ollama:11434/v1
-      - LLM_MODEL=gpt-oss-20b
+      - LLM_MODEL=gpt-oss:20b
       - LLM_TEMPERATURE=0.7
       - LLM_MAX_TOKENS=4096
       - MAX_ITERATIONS=10

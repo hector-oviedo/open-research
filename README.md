@@ -4,7 +4,7 @@ A production-grade local deep research application using multi-agent orchestrati
 
 ## Architecture
 
-**Inference Engine:** Ollama (GPT OSS 20B) with ROCm support for AMD GPUs  
+**Inference Engine:** Ollama (gpt-oss:20b) with ROCm support for AMD GPUs  
 **Pattern:** Orchestrator-Workers (Star Topology)  
 **Stack:**
 - **Backend:** Python 3.12+ / FastAPI / LangGraph / SQLite (Ubuntu-based)
@@ -25,7 +25,31 @@ A production-grade local deep research application using multi-agent orchestrati
 
 - Docker & Docker Compose
 - AMD GPU with ROCm drivers (for GPU acceleration)
+- **For Strix Halo (Ryzen AI Max):** Ubuntu 25.04+ with kernel 6.12+
 - Port 11434, 8000, 5173 available
+
+### 🔧 GPU Configuration (Strix Halo / RDNA 3.5)
+
+If you have an AMD Ryzen AI Max (Strix Halo) with RDNA 3.5 graphics, configure GPU access:
+
+```bash
+# Find your GPU group IDs
+getent group video | cut -d: -f3   # e.g., 44
+getent group render | cut -d: -f3  # e.g., 991
+
+# Copy and edit environment
+cp .env.example .env
+# Edit VIDEO_GID and RENDER_GID to match your system
+```
+
+The `.env` file should contain:
+```env
+VIDEO_GID=44
+RENDER_GID=991
+HSA_OVERRIDE_GFX_VERSION=11.5.1
+```
+
+**Reference:** Configuration based on [ComfyUI Strix Halo Docker](https://github.com/hector-oviedo/comfyui-strix-docker)
 
 ### ⚠️ Important: Stop Local Ollama First!
 
@@ -55,8 +79,8 @@ cp .env.example .env
 # Start all services
 docker compose up --build -d
 
-# Pull the model (first time only)
-docker exec -it deepresearch-ollama ollama pull gpt-oss-20b
+# Pull the model (first time only, ~13.8GB)
+docker exec -it deepresearch-ollama ollama pull gpt-oss:20b
 
 # Check status
 curl http://localhost:8000/health
@@ -106,9 +130,9 @@ pkill ollama
 
 ### ROCm GPU Not Detected
 
-**Error:** Ollama runs on CPU instead of GPU
+**Error:** Ollama runs on CPU instead of GPU (`library=cpu`)
 
-**Solution:** Check ROCm installation:
+**Solution for Standard AMD GPUs:**
 ```bash
 # Verify GPU is visible
 rocm-smi
@@ -116,21 +140,28 @@ rocm-smi
 # Check render group ID
 cat /etc/group | grep render
 
-# Add to .env if needed:
-# RENDER_GROUP=110  # your render group number
+# Edit .env with your group IDs
+VIDEO_GID=44
+RENDER_GID=991
 ```
 
-Then uncomment in `docker-compose.yml`:
-```yaml
-group_add:
-  - "${RENDER_GROUP:-render}"
+**Solution for Strix Halo (RDNA 3.5 / gfx1151):**
+The docker-compose.yml already includes required settings:
+- `privileged: true` - Required for GPU access
+- `HSA_OVERRIDE_GFX_VERSION=11.5.1` - Strix Halo architecture
+- `ipc: host` and `seccomp:unconfined` - Shared memory
+
+Verify GPU detection:
+```bash
+docker logs deepresearch-ollama | grep "inference compute"
+# Should show: library=ROCm compute=gfx1151
 ```
 
 ### Model Not Found
 
 ```bash
 # Pull manually
-docker exec -it deepresearch-ollama ollama pull gpt-oss-20b
+docker exec -it deepresearch-ollama ollama pull gpt-oss:20b
 
 # List available models
 docker exec -it deepresearch-ollama ollama list
