@@ -10,6 +10,7 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.ollama_adapter import get_adapter
+from app.core.checkpointer import get_checkpointer
 from app.models.state import ResearchState, create_initial_state, get_progress_percent
 
 # Create router for API endpoints
@@ -109,3 +110,25 @@ async def test_state() -> dict:
         },
         "message": "ResearchState typed dict working correctly",
     }
+
+
+@router.get("/api/checkpointer/stats")
+async def checkpointer_stats() -> dict:
+    """
+    Get SQLite checkpointer statistics.
+    
+    Returns:
+        dict: Database statistics
+    """
+    try:
+        checkpointer = get_checkpointer()
+        stats = checkpointer.get_stats()
+        return {
+            "status": "success",
+            "stats": stats,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+        }
