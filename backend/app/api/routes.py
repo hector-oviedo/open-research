@@ -13,6 +13,7 @@ from app.core.ollama_adapter import get_adapter
 from app.core.checkpointer import get_checkpointer
 from app.core.graph import get_research_graph
 from app.agents.planner import get_planner
+from app.agents.finder import get_finder
 from app.models.state import ResearchState, create_initial_state, get_progress_percent
 
 # Create router for API endpoints
@@ -210,6 +211,46 @@ async def test_graph() -> dict:
                 for sq in plan[:3]  # Show first 3
             ],
             "message": f"Graph executed successfully with {len(plan)} sub-questions",
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
+@router.post("/api/test/finder")
+async def test_finder() -> dict:
+    """
+    Test endpoint to verify Source Finder Agent works.
+    
+    Returns:
+        dict: Test result with discovered sources
+    """
+    try:
+        finder = get_finder()
+        result = await finder.find_sources(
+            sub_question="What are the latest breakthroughs in fusion energy 2024-2025?",
+            sub_question_id="sq-test",
+        )
+        
+        sources = result.get("sources", [])
+        return {
+            "status": "success",
+            "sub_question": "What are the latest breakthroughs in fusion energy 2024-2025?",
+            "sources_count": len(sources),
+            "sources": [
+                {
+                    "id": s.get("id"),
+                    "title": s.get("title", "Untitled")[:80] + "...",
+                    "domain": s.get("domain"),
+                    "confidence": s.get("confidence"),
+                }
+                for s in sources[:5]  # Show first 5
+            ],
+            "message": f"Finder discovered {len(sources)} sources",
         }
     except Exception as e:
         import traceback

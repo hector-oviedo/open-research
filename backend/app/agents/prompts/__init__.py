@@ -57,3 +57,4 @@ def list_available_prompts() -> list[str]:
 
 # Pre-load common prompts for convenience
 PLANNER_PROMPT = load_prompt("planner.md")
+FINDER_PROMPT = load_prompt("finder.md")
