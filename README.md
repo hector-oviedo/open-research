@@ -8,16 +8,32 @@ A production-grade local deep research application using multi-agent orchestrati
 **Pattern:** Orchestrator-Workers (Star Topology)  
 **Stack:**
 - **Backend:** Python 3.12+ / FastAPI / LangGraph / SQLite (Ubuntu-based)
-- **Frontend:** React / Vite / TypeScript / TailwindCSS / Framer Motion (Ubuntu-based)
+- **Frontend:** React / Vite / TypeScript / TailwindCSS / Framer Motion
 - **Infrastructure:** Docker Compose
 
 ## Agent Grid
 
-1. **Planner** - Decomposes queries into research plans
-2. **Source Finder** - Discovers diverse sources
+1. **Planner** - Decomposes queries into structured research plans
+2. **Source Finder** - Discovers diverse sources with domain diversity
 3. **Summarizer** - Compresses content (10:1 ratio)
-4. **Reviewer** - Detects gaps and triggers iteration
+4. **Reviewer** - Detects gaps and triggers iteration loops
 5. **Writer** - Synthesizes final reports with citations
+
+---
+
+## 🚀 Development Stages
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| **Phase 0** | ✅ Complete | Project infrastructure, Docker setup, GPU support |
+| **Phase 1** | ✅ Complete | Backend core: structure, config, adapter, state, checkpointer, docs |
+| **Phase 2** | 🔄 Ready | First Agent (Planner) - Query decomposition |
+| **Phase 3** | ⏳ Pending | Remaining Agents (Source Finder, Summarizer, Reviewer, Writer) |
+| **Phase 4** | ⏳ Pending | Streaming & Interruption (SSE, stop/resume) |
+| **Phase 5** | ⏳ Pending | Frontend Dashboard (Mission Control) |
+| **Phase 6** | ⏳ Pending | Integration & Polish |
+
+---
 
 ## Quick Start
 
@@ -76,11 +92,11 @@ cd open-research
 # Copy environment template
 cp .env.example .env
 
-# Start all services
+# Start all services (Ollama auto-downloads model on first start)
 docker compose up --build -d
 
-# Pull the model (first time only, ~13.8GB)
-docker exec -it deepresearch-ollama ollama pull gpt-oss:20b
+# Monitor Ollama model download
+docker logs -f deepresearch-ollama
 
 # Check status
 curl http://localhost:8000/health
@@ -90,10 +106,11 @@ curl http://localhost:8000/health
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| Frontend | http://localhost:5173 | React Dashboard |
-| Backend API | http://localhost:8000 | FastAPI |
-| API Docs | http://localhost:8000/docs | Bootstrap Documentation |
-| Ollama | http://localhost:11434 | Inference API |
+| **API Docs (Custom)** | http://localhost:8000/custom-docs | Bootstrap-styled documentation |
+| **API Docs (Swagger)** | http://localhost:8000/docs | Auto-generated OpenAPI docs |
+| **Backend API** | http://localhost:8000 | FastAPI endpoints |
+| **Ollama** | http://localhost:11434 | Inference API |
+| **Frontend** | http://localhost:5173 | React Dashboard (Phase 5) |
 
 ### Stop Everything
 
@@ -103,6 +120,94 @@ docker compose down
 # To also remove data volumes:
 docker compose down -v
 ```
+
+---
+
+## 🧪 Testing What We Have
+
+### Current Working Features (Phase 1 Complete)
+
+```bash
+# 1. Health Check
+curl http://localhost:8000/health
+# Response: {"status":"healthy","version":"0.1.0","config":{"ollama_model":"gpt-oss:20b",...}}
+
+# 2. API Status
+curl http://localhost:8000/api/status
+# Response: {"status":"operational","features":{"planner":"not_implemented",...}}
+
+# 3. Checkpointer Stats
+curl http://localhost:8000/api/checkpointer/stats
+# Response: {"status":"success","stats":{"sessions":0,"checkpoints":0,...}}
+
+# 4. Test Ollama Adapter (GPU Inference)
+curl -X POST http://localhost:8000/api/test/ollama
+# Response: {"status":"success","model":"gpt-oss:20b","response":"Ollama adapter working",...}
+
+# 5. Test Research State
+curl -X POST http://localhost:8000/api/test/state
+# Response: {"status":"success","state":{"query":"...","progress_percent":0,...}}
+```
+
+### Verify GPU is Working
+
+```bash
+# Check Ollama logs for GPU detection
+docker logs deepresearch-ollama | grep "inference compute"
+# Should show: library=ROCm compute=gfx1151
+
+# Test GPU inference directly
+curl -X POST http://localhost:11434/api/generate \
+  -d '{"model": "gpt-oss:20b", "prompt": "Say hello GPU", "stream": false}'
+```
+
+### View Documentation
+
+1. **Bootstrap Custom Docs:** http://localhost:8000/custom-docs
+   - Beautiful styled documentation
+   - Agent grid overview
+   - API endpoint reference
+
+2. **Swagger OpenAPI:** http://localhost:8000/docs
+   - Interactive API explorer
+   - Try endpoints directly
+   - Schema definitions
+
+---
+
+## 📁 Project Structure
+
+```
+open-research/
+├── docker-compose.yml          # Service orchestration
+├── .env                        # Environment configuration
+├── .env.example                # Configuration template
+├── start.sh                    # Automation script
+├── ollama/                     # Ollama service (auto-download)
+│   ├── Dockerfile
+│   └── entrypoint.sh
+├── backend/                    # FastAPI backend (Phase 1 ✅)
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── routes.py       # HTTP endpoints
+│   │   ├── core/
+│   │   │   ├── config.py       # Pydantic Settings
+│   │   │   ├── ollama_adapter.py   # VLLM singleton
+│   │   │   └── checkpointer.py     # SQLite persistence
+│   │   ├── agents/             # LangGraph nodes (Phase 2 🔄)
+│   │   └── models/
+│   │       └── state.py        # ResearchState TypedDict
+│   ├── docs/
+│   │   └── index.html          # Bootstrap documentation
+│   ├── main.py                 # Application entry
+│   └── pyproject.toml          # Dependencies
+├── frontend/                   # React dashboard (Phase 5 ⏳)
+└── agent/
+    ├── PLAN.md                 # Execution roadmap
+    └── MEMORY.md               # Technical decisions
+```
+
+---
 
 ## Alternative: Using the Launch Script
 
@@ -114,6 +219,8 @@ chmod +x start.sh
 ./start.sh logs      # View logs
 ./start.sh down      # Stop everything
 ```
+
+---
 
 ## Troubleshooting
 
@@ -157,19 +264,26 @@ docker logs deepresearch-ollama | grep "inference compute"
 # Should show: library=ROCm compute=gfx1151
 ```
 
-### Model Not Found
+### Model Auto-Download
 
+The Ollama container now **auto-downloads** the model on first start. To monitor:
 ```bash
-# Pull manually
-docker exec -it deepresearch-ollama ollama pull gpt-oss:20b
-
-# List available models
-docker exec -it deepresearch-ollama ollama list
+docker logs -f deepresearch-ollama
+# Wait for: "✓ Model is ready to use!"
 ```
+
+Or check if model is ready:
+```bash
+curl http://localhost:11434/api/tags | grep gpt-oss
+```
+
+---
 
 ## Development Status
 
-See `/agent/PLAN.md` for the execution roadmap.
+**Current Phase:** Phase 2 - The First Agent (Planner) 🔄
+
+See `/agent/PLAN.md` for detailed execution roadmap.
 
 ## License
 
