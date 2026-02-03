@@ -4,17 +4,134 @@
  * Displays the final research report with markdown rendering
  * and download functionality (Markdown + PDF).
  */
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { FileText, FileCode, X } from 'lucide-react';
+import { FileText, FileCode } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  PDFDownloadLink,
+} from '@react-pdf/renderer';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { SourceViewer } from './SourceViewer';
 import { useResearchStore } from '../stores/researchStore';
 
-// Custom link component that opens in new tab
+// PDF Styles
+const pdfStyles = StyleSheet.create({
+  page: {
+    padding: 50,
+    fontSize: 11,
+    fontFamily: 'Helvetica',
+    lineHeight: 1.5,
+  },
+  header: {
+    marginBottom: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: '#333',
+    paddingBottom: 10,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#000',
+  },
+  metadata: {
+    fontSize: 10,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  section: {
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    backgroundColor: '#f0f0f0',
+    padding: 6,
+    color: '#000',
+  },
+  paragraph: {
+    marginBottom: 8,
+    textAlign: 'justify',
+    color: '#333',
+  },
+  executiveSummary: {
+    backgroundColor: '#f5f5f5',
+    padding: 12,
+    marginBottom: 15,
+    borderLeftWidth: 3,
+    borderLeftColor: '#333',
+  },
+  executiveTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#000',
+  },
+  sourceItem: {
+    fontSize: 9,
+    marginBottom: 6,
+    paddingLeft: 15,
+  },
+  sourceTitle: {
+    fontWeight: 'bold',
+  },
+  sourceUrl: {
+    color: '#0066cc',
+    fontSize: 8,
+  },
+  confidenceBox: {
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  confidenceTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 4,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 50,
+    right: 50,
+    fontSize: 8,
+    color: '#999',
+    textAlign: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+    paddingTop: 8,
+  },
+  pageNumber: {
+    position: 'absolute',
+    bottom: 30,
+    right: 50,
+    fontSize: 8,
+    color: '#999',
+  },
+  referencesSection: {
+    marginTop: 10,
+  },
+  referencesTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#000',
+  },
+});
+
+// Custom link component that opens in new tab (for UI)
 const MarkdownLink = ({ href, children }: { href?: string; children?: React.ReactNode }) => {
   return (
     <a 
@@ -28,13 +145,129 @@ const MarkdownLink = ({ href, children }: { href?: string; children?: React.Reac
   );
 };
 
+// PDF Document Component
+interface PDFReportProps {
+  title: string;
+  date: string;
+  word_count: number;
+  sources_count: number;
+  executive_summary: string;
+  sections: Array<{ heading: string; content: string }>;
+  sources: Array<{ title: string; url: string; reliability: string }>;
+  confidence_assessment: string;
+}
+
+const ReportPDFDocument: React.FC<PDFReportProps> = ({
+  title,
+  date,
+  word_count,
+  sources_count,
+  executive_summary,
+  sections,
+  sources,
+  confidence_assessment,
+}) => {
+  // Clean text for PDF (remove markdown)
+  const cleanText = (text: string) => {
+    return text
+      .replace(/\[🔗([^\]]+)\]\(([^)]+)\)/g, '$1')
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/#/g, '');
+  };
+
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page}>
+        {/* Header */}
+        <View style={pdfStyles.header}>
+          <Text style={pdfStyles.title}>{title}</Text>
+          <Text style={pdfStyles.metadata}>
+            Research Report | {date} | {word_count} words | {sources_count} sources
+          </Text>
+        </View>
+
+        {/* Executive Summary */}
+        <View style={pdfStyles.executiveSummary}>
+          <Text style={pdfStyles.executiveTitle}>Executive Summary</Text>
+          {cleanText(executive_summary).split('\n').filter(p => p.trim()).map((para, idx) => (
+            <Text key={idx} style={pdfStyles.paragraph}>
+              {para}
+            </Text>
+          ))}
+        </View>
+
+        {/* Sections */}
+        {sections.map((section, index) => (
+          <View key={index} style={pdfStyles.section}>
+            <Text style={pdfStyles.sectionTitle}>
+              {index + 1}. {section.heading}
+            </Text>
+            {cleanText(section.content).split('\n\n').filter(p => p.trim()).map((para, pidx) => (
+              <Text key={pidx} style={pdfStyles.paragraph}>
+                {para}
+              </Text>
+            ))}
+          </View>
+        ))}
+
+        {/* Footer on first page */}
+        <Text style={pdfStyles.footer}>
+          Generated by Deep Research System
+        </Text>
+        <Text
+          style={pdfStyles.pageNumber}
+          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          fixed
+        />
+      </Page>
+
+      {/* References Page */}
+      <Page size="A4" style={pdfStyles.page}>
+        <View style={pdfStyles.referencesSection}>
+          <Text style={pdfStyles.referencesTitle}>References</Text>
+          {sources.map((source, index) => (
+            <View key={index} style={pdfStyles.sourceItem}>
+              <Text>
+                {index + 1}. <Text style={pdfStyles.sourceTitle}>{source.title || 'Untitled'}</Text>
+                {' '}
+                [{source.reliability || 'unknown'}]
+              </Text>
+              <Text style={pdfStyles.sourceUrl}>{source.url}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Confidence Assessment on references page */}
+        <View style={pdfStyles.confidenceBox}>
+          <Text style={pdfStyles.confidenceTitle}>Confidence Assessment</Text>
+          {cleanText(confidence_assessment).split('\n').filter(p => p.trim()).map((para, idx) => (
+            <Text key={idx} style={{ fontSize: 10, color: '#333' }}>
+              {para}
+            </Text>
+          ))}
+        </View>
+
+        {/* Footer */}
+        <Text style={pdfStyles.footer}>
+          Generated by Deep Research System
+        </Text>
+        <Text
+          style={pdfStyles.pageNumber}
+          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          fixed
+        />
+      </Page>
+    </Document>
+  );
+};
+
 export function ReportViewer() {
   const { finalReport, status } = useResearchStore();
-  const [showPdfPreview, setShowPdfPreview] = useState(false);
 
   if (!finalReport || status !== 'completed') return null;
 
-  // Safety checks for report data - using snake_case from backend
+  // Safety checks for report data
   const title = finalReport.title || 'Untitled Report';
   const word_count = finalReport.word_count || 0;
   const sources_used = finalReport.sources_used || [];
@@ -75,300 +308,101 @@ ${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - $
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadPDF = () => {
-    // Open print dialog for PDF generation
-    setShowPdfPreview(true);
-    
-    // Wait for render then print
-    setTimeout(() => {
-      window.print();
-    }, 500);
-  };
-
-  // Clean markdown text for PDF
-  const cleanText = (text: string) => {
-    return text
-      .replace(/\[🔗([^\]]+)\]\(([^)]+)\)/g, '$1')
-      .replace(/\*\*/g, '')
-      .replace(/\*/g, '')
-      .replace(/#/g, '');
+  // PDF Document data
+  const pdfData: PDFReportProps = {
+    title,
+    date: new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }),
+    word_count,
+    sources_count: sources_used.length,
+    executive_summary,
+    sections,
+    sources: sources_used,
+    confidence_assessment,
   };
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full"
-      >
-        <Card
-          title={title}
-          subtitle={`${word_count} words • ${sources_used.length} sources`}
-          headerAction={
-            <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={handleDownloadPDF}>
-                <FileText className="w-4 h-4 mr-2" />
-                PDF
-              </Button>
-              <Button variant="secondary" size="sm" onClick={handleDownloadMarkdown}>
-                <FileCode className="w-4 h-4 mr-2" />
-                Markdown
-              </Button>
-            </div>
-          }
-        >
-          {/* Executive Summary */}
-          <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <h4 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
-              Executive Summary
-            </h4>
-            <div className="prose prose-invert prose-sm max-w-none">
-              <ReactMarkdown 
-                remarkPlugins={[remarkGfm]}
-                components={{ a: MarkdownLink }}
-              >
-                {executive_summary}
-              </ReactMarkdown>
-            </div>
-          </div>
-
-          {/* Sections */}
-          <div className="space-y-6">
-            {sections.map((section, index) => (
-              <div key={index} className="border-b border-slate-800 pb-6 last:border-0">
-                <h4 className="text-lg font-semibold text-white mb-3">{section.heading}</h4>
-                <div className="prose prose-invert prose-sm max-w-none">
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{ a: MarkdownLink }}
-                  >
-                    {section.content}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Sources */}
-          <div className="mt-8 pt-6 border-t border-slate-800">
-            <SourceViewer sources={sources_used} />
-          </div>
-
-          {/* Confidence Assessment */}
-          <div className="mt-6 p-4 bg-slate-800/30 rounded-lg">
-            <h4 className="text-sm font-medium text-slate-400 mb-2">Confidence Assessment</h4>
-            <div className="prose prose-invert prose-sm max-w-none">
-              <ReactMarkdown 
-                remarkPlugins={[remarkGfm]}
-                components={{ a: MarkdownLink }}
-              >
-                {confidence_assessment}
-              </ReactMarkdown>
-            </div>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* PDF Print Preview Modal */}
-      {showPdfPreview && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between print:hidden">
-              <h3 className="text-lg font-semibold text-gray-900">PDF Preview</h3>
-              <div className="flex items-center gap-2">
-                <Button variant="primary" size="sm" onClick={() => window.print()}>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full"
+    >
+      <Card
+        title={title}
+        subtitle={`${word_count} words • ${sources_used.length} sources`}
+        headerAction={
+          <div className="flex items-center gap-2">
+            <PDFDownloadLink
+              document={<ReportPDFDocument {...pdfData} />}
+              fileName={`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`}
+            >
+              {({ loading }) => (
+                <Button variant="secondary" size="sm" disabled={loading}>
                   <FileText className="w-4 h-4 mr-2" />
-                  Print to PDF
+                  {loading ? 'Generating...' : 'PDF'}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setShowPdfPreview(false)}>
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* PDF Content - This is what gets printed */}
-            <div className="p-8 md:p-12 bg-white text-black" id="pdf-content">
-              {/* Title */}
-              <h1 style={{ 
-                fontSize: '28pt', 
-                fontWeight: 'bold',
-                marginBottom: '8pt',
-                color: '#000',
-                borderBottom: '2pt solid #333',
-                paddingBottom: '12pt',
-                fontFamily: 'Georgia, serif'
-              }}>
-                {title}
-              </h1>
-
-              {/* Metadata */}
-              <p style={{ 
-                fontSize: '10pt', 
-                color: '#555',
-                marginBottom: '24pt',
-                fontStyle: 'italic',
-                fontFamily: 'Georgia, serif'
-              }}>
-                Research Report | {new Date().toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })} | {word_count} words | {sources_used.length} sources
-              </p>
-
-              {/* Executive Summary */}
-              <div style={{ marginBottom: '24pt' }}>
-                <h2 style={{ 
-                  fontSize: '16pt', 
-                  fontWeight: 'bold',
-                  marginBottom: '12pt',
-                  color: '#000',
-                  fontFamily: 'Georgia, serif'
-                }}>
-                  Executive Summary
-                </h2>
-                <div style={{ 
-                  fontSize: '11pt',
-                  lineHeight: '1.6',
-                  textAlign: 'justify',
-                  fontFamily: 'Georgia, serif'
-                }}>
-                  {executive_summary.split('\n').filter(p => p.trim()).map((paragraph, idx) => (
-                    <p key={idx} style={{ marginBottom: '8pt', textIndent: '0' }}>
-                      {cleanText(paragraph)}
-                    </p>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sections */}
-              {sections.map((section, index) => (
-                <div key={index} style={{ marginBottom: '20pt' }}>
-                  <h3 style={{ 
-                    fontSize: '14pt', 
-                    fontWeight: 'bold',
-                    marginTop: '16pt',
-                    marginBottom: '10pt',
-                    color: '#000',
-                    fontFamily: 'Georgia, serif',
-                    borderLeft: '3pt solid #333',
-                    paddingLeft: '10pt'
-                  }}>
-                    {index + 1}. {section.heading}
-                  </h3>
-                  <div style={{ 
-                    fontSize: '11pt',
-                    lineHeight: '1.6',
-                    textAlign: 'justify',
-                    fontFamily: 'Georgia, serif'
-                  }}>
-                    {section.content.split('\n\n').filter(p => p.trim()).map((paragraph, pidx) => (
-                      <p key={pidx} style={{ marginBottom: '8pt' }}>
-                        {cleanText(paragraph)}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              {/* Page break before references */}
-              <div style={{ pageBreakBefore: 'always' }}>
-                <h2 style={{ 
-                  fontSize: '16pt', 
-                  fontWeight: 'bold',
-                  marginBottom: '16pt',
-                  color: '#000',
-                  fontFamily: 'Georgia, serif'
-                }}>
-                  References
-                </h2>
-
-                <div style={{ fontSize: '10pt', fontFamily: 'Georgia, serif' }}>
-                  {sources_used.map((source, index) => (
-                    <div key={index} style={{ 
-                      marginBottom: '12pt',
-                      paddingLeft: '20pt',
-                      textIndent: '-20pt'
-                    }}>
-                      <span style={{ fontWeight: 'bold' }}>{index + 1}.</span>
-                      {' '}
-                      <span style={{ fontWeight: 'bold' }}>{source.title || 'Untitled'}</span>
-                      {' '}
-                      <span style={{ 
-                        fontStyle: 'italic',
-                        color: source.reliability === 'high' ? '#28a745' : 
-                               source.reliability === 'medium' ? '#856404' : '#6c757d'
-                      }}>
-                        [{source.reliability || 'unknown'}]
-                      </span>
-                      <br />
-                      <span style={{ color: '#0066cc' }}>{source.url}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Confidence Assessment */}
-              <div style={{ marginTop: '24pt' }}>
-                <h2 style={{ 
-                  fontSize: '16pt', 
-                  fontWeight: 'bold',
-                  marginBottom: '12pt',
-                  color: '#000',
-                  fontFamily: 'Georgia, serif'
-                }}>
-                  Confidence Assessment
-                </h2>
-                <div style={{ 
-                  fontSize: '11pt',
-                  lineHeight: '1.6',
-                  textAlign: 'justify',
-                  fontFamily: 'Georgia, serif'
-                }}>
-                  {confidence_assessment.split('\n').filter(p => p.trim()).map((paragraph, idx) => (
-                    <p key={idx} style={{ marginBottom: '8pt' }}>
-                      {cleanText(paragraph)}
-                    </p>
-                  ))}
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div style={{ 
-                marginTop: '40pt',
-                paddingTop: '12pt',
-                borderTop: '1pt solid #ccc',
-                fontSize: '8pt',
-                color: '#666',
-                textAlign: 'center',
-                fontFamily: 'Georgia, serif'
-              }}>
-                Generated by Deep Research System
-              </div>
-            </div>
+              )}
+            </PDFDownloadLink>
+            <Button variant="secondary" size="sm" onClick={handleDownloadMarkdown}>
+              <FileCode className="w-4 h-4 mr-2" />
+              Markdown
+            </Button>
+          </div>
+        }
+      >
+        {/* Executive Summary */}
+        <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">
+          <h4 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
+            Executive Summary
+          </h4>
+          <div className="prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              components={{ a: MarkdownLink }}
+            >
+              {executive_summary}
+            </ReactMarkdown>
           </div>
         </div>
-      )}
 
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #pdf-content, #pdf-content * {
-            visibility: visible;
-          }
-          #pdf-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 20mm !important;
-          }
-        }
-      `}</style>
-    </>
+        {/* Sections */}
+        <div className="space-y-6">
+          {sections.map((section, index) => (
+            <div key={index} className="border-b border-slate-800 pb-6 last:border-0">
+              <h4 className="text-lg font-semibold text-white mb-3">{section.heading}</h4>
+              <div className="prose prose-invert prose-sm max-w-none">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{ a: MarkdownLink }}
+                >
+                  {section.content}
+                </ReactMarkdown>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Sources */}
+        <div className="mt-8 pt-6 border-t border-slate-800">
+          <SourceViewer sources={sources_used} />
+        </div>
+
+        {/* Confidence Assessment */}
+        <div className="mt-6 p-4 bg-slate-800/30 rounded-lg">
+          <h4 className="text-sm font-medium text-slate-400 mb-2">Confidence Assessment</h4>
+          <div className="prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm]}
+              components={{ a: MarkdownLink }}
+            >
+              {confidence_assessment}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </Card>
+    </motion.div>
   );
 }
