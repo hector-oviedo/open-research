@@ -192,12 +192,12 @@ export function TraceLog({ onViewReport }: TraceLogProps) {
   // Filter out heartbeat events
   const displayEvents = events.filter(e => e.type !== 'heartbeat');
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom only when display events change (not heartbeats)
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [events]);
+  }, [displayEvents.length]);
 
   if (status === 'idle' && displayEvents.length === 0) {
     return null;
