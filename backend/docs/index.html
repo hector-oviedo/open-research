@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,41 +7,80 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
+        /* CSS Variables for theming */
         :root {
             --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --dark-bg: #1a1a2e;
-            --card-bg: #16213e;
+            --transition-speed: 0.3s;
         }
+
+        /* Dark theme (default) */
+        [data-bs-theme="dark"] {
+            --bg-body: #1a1a2e;
+            --bg-card: #16213e;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --text-muted: #6c757d;
+            --border-color: #2d3748;
+            --code-bg: #0d1117;
+            --link-color: #667eea;
+            --link-hover: #8b9dc3;
+            --shadow-color: rgba(102, 126, 234, 0.2);
+        }
+
+        /* Light theme */
+        [data-bs-theme="light"] {
+            --bg-body: #f8f9fa;
+            --bg-card: #ffffff;
+            --text-primary: #212529;
+            --text-secondary: #495057;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --code-bg: #f8f9fa;
+            --link-color: #0d6efd;
+            --link-hover: #0a58ca;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+
         body {
-            background: var(--dark-bg);
-            color: #e0e0e0;
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            transition: background-color var(--transition-speed), color var(--transition-speed);
         }
+
         .hero {
             background: var(--primary-gradient);
             padding: 4rem 0;
             margin-bottom: 2rem;
+            color: white;
         }
+
         .card {
-            background: var(--card-bg);
-            border: 1px solid #2d3748;
-            transition: transform 0.2s, box-shadow 0.2s;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            transition: transform 0.2s, box-shadow 0.2s, background-color var(--transition-speed);
         }
+
         .card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+            box-shadow: 0 10px 30px var(--shadow-color);
         }
+
         .endpoint-card {
             border-left: 4px solid #667eea;
         }
+
         .method-badge {
             font-size: 0.75rem;
             font-weight: 700;
             padding: 0.25rem 0.5rem;
             border-radius: 0.25rem;
         }
+
         .method-post { background: #28a745; color: white; }
         .method-get { background: #17a2b8; color: white; }
+
         .agent-icon {
             width: 50px;
             height: 50px;
@@ -51,14 +90,20 @@
             align-items: center;
             justify-content: center;
             font-size: 1.5rem;
+            color: white;
         }
+
         .code-block {
-            background: #0d1117;
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
             border-radius: 0.5rem;
             padding: 1rem;
-            font-family: 'Fira Code', monospace;
+            font-family: 'Fira Code', 'Consolas', monospace;
             font-size: 0.875rem;
+            color: var(--text-primary);
+            overflow-x: auto;
         }
+
         .status-badge {
             position: fixed;
             top: 1rem;
@@ -67,21 +112,90 @@
             border-radius: 2rem;
             font-weight: 600;
             font-size: 0.875rem;
+            z-index: 1000;
         }
+
         .status-online {
             background: #28a745;
             color: white;
         }
+
         .nav-link {
-            color: #a0a0a0;
+            color: var(--text-secondary);
             transition: color 0.2s;
         }
+
         .nav-link:hover, .nav-link.active {
-            color: #667eea;
+            color: var(--link-color);
+        }
+
+        /* Theme toggle button */
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1000;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            cursor: pointer;
+            transition: all var(--transition-speed);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .theme-toggle:hover {
+            background: var(--link-color);
+            color: white;
+        }
+
+        /* Ensure text contrast */
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--text-primary);
+        }
+
+        p, span, div {
+            color: var(--text-primary);
+        }
+
+        .text-muted {
+            color: var(--text-muted) !important;
+        }
+
+        code {
+            color: var(--text-primary);
+            background-color: var(--code-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+        }
+
+        /* Link colors */
+        a {
+            color: var(--link-color);
+        }
+
+        a:hover {
+            color: var(--link-hover);
+        }
+
+        /* Smooth transitions for all themed elements */
+        *, *::before, *::after {
+            transition: background-color var(--transition-speed), 
+                        border-color var(--transition-speed), 
+                        color var(--transition-speed);
         }
     </style>
 </head>
 <body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+        <i class="bi bi-sun-fill" id="themeIcon"></i>
+        <span id="themeText">Light</span>
+    </button>
+
     <!-- Status Badge -->
     <div class="status-badge status-online" id="apiStatus">
         <i class="bi bi-circle-fill me-2" style="font-size: 0.5rem;"></i>API Online
@@ -209,7 +323,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <span class="method-badge method-get me-3">GET</span>
-                        <code class="text-light">/health</code>
+                        <code>/health</code>
                     </div>
                     <p class="text-muted">Health check for Docker and monitoring</p>
                 </div>
@@ -219,7 +333,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <span class="method-badge method-get me-3">GET</span>
-                        <code class="text-light">/api/status</code>
+                        <code>/api/status</code>
                     </div>
                     <p class="text-muted">Detailed API status with feature flags</p>
                 </div>
@@ -229,30 +343,30 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <span class="method-badge method-get me-3">GET</span>
-                        <code class="text-light">/api/checkpointer/stats</code>
+                        <code>/api/checkpointer/stats</code>
                     </div>
                     <p class="text-muted">SQLite checkpoint database statistics</p>
                 </div>
             </div>
 
-            <h5 class="mb-3 mt-4 text-muted">Research (Phase 2+)</h5>
+            <h5 class="mb-3 mt-4 text-muted">Research</h5>
             
             <div class="card endpoint-card mb-3">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <span class="method-badge method-post me-3">POST</span>
-                        <code class="text-light">/research/start</code>
+                        <code>/api/research/start</code>
                     </div>
                     <p class="text-muted">Initialize a new research session</p>
                     <div class="code-block mt-3">
-                        <span class="text-success">// Request</span><br>
+                        <span style="color: #28a745;">// Request</span><br>
                         {<br>
-                        &nbsp;&nbsp;<span class="text-warning">"query"</span>: <span class="text-info">"Impact of AI on healthcare"</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"query"</span>: <span style="color: #17a2b8;">"Impact of AI on healthcare"</span><br>
                         }<br><br>
-                        <span class="text-success">// Response</span><br>
+                        <span style="color: #28a745;">// Response</span><br>
                         {<br>
-                        &nbsp;&nbsp;<span class="text-warning">"research_id"</span>: <span class="text-info">"uuid-string"</span>,<br>
-                        &nbsp;&nbsp;<span class="text-warning">"status"</span>: <span class="text-info">"started"</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"status"</span>: <span style="color: #17a2b8;">"started"</span>,<br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"session_id"</span>: <span style="color: #17a2b8;">"uuid-string"</span><br>
                         }
                     </div>
                 </div>
@@ -262,7 +376,7 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <span class="method-badge method-get me-3">GET</span>
-                        <code class="text-light">/research/{id}/events</code>
+                        <code>/api/research/{id}/events</code>
                     </div>
                     <p class="text-muted">Server-Sent Events stream for real-time updates</p>
                 </div>
@@ -272,9 +386,19 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <span class="method-badge method-post me-3">POST</span>
-                        <code class="text-light">/research/{id}/stop</code>
+                        <code>/api/research/{id}/stop</code>
                     </div>
                     <p class="text-muted">Interrupt an active research session</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-get me-3">GET</span>
+                        <code>/api/research/{id}/status</code>
+                    </div>
+                    <p class="text-muted">Get current status of research session</p>
                 </div>
             </div>
 
@@ -284,19 +408,19 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <span class="method-badge method-post me-3">POST</span>
-                        <code class="text-light">/api/test/ollama</code>
+                        <code>/api/test/planner</code>
                     </div>
-                    <p class="text-muted">Test Ollama adapter connectivity</p>
+                    <p class="text-muted">Test Planner Agent</p>
                 </div>
             </div>
 
-            <div class="card endpoint-card">
+            <div class="card endpoint-card mb-3">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <span class="method-badge method-post me-3">POST</span>
-                        <code class="text-light">/api/test/state</code>
+                        <code>/api/test/graph</code>
                     </div>
-                    <p class="text-muted">Test ResearchState structure</p>
+                    <p class="text-muted">Test full research graph end-to-end</p>
                 </div>
             </div>
         </section>
@@ -306,15 +430,15 @@
             <h3 class="mb-4"><i class="bi bi-file-code me-2"></i>Schemas</h3>
             <div class="card">
                 <div class="card-body">
-                    <h6 class="text-primary">ResearchState (LangGraph State)</h6>
+                    <h6 style="color: #667eea;">ResearchState (LangGraph State)</h6>
                     <div class="code-block">
                         {<br>
-                        &nbsp;&nbsp;<span class="text-warning">"query"</span>: <span class="text-info">string</span>,              <span class="text-muted">// Original user query</span><br>
-                        &nbsp;&nbsp;<span class="text-warning">"plan"</span>: ResearchPlan,           <span class="text-muted">// Generated research plan</span><br>
-                        &nbsp;&nbsp;<span class="text-warning">"findings"</span>: Finding[],          <span class="text-muted">// Accumulated findings</span><br>
-                        &nbsp;&nbsp;<span class="text-warning">"gap_report"</span>: GapReport,        <span class="text-muted">// Reviewer feedback</span><br>
-                        &nbsp;&nbsp;<span class="text-warning">"final_report"</span>: <span class="text-info">string</span>,      <span class="text-muted">// Synthesized output</span><br>
-                        &nbsp;&nbsp;<span class="text-warning">"iterations"</span>: <span class="text-info">number</span>       <span class="text-muted">// Loop counter</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"query"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Original user query</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"plan"</span>: ResearchPlan,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Generated research plan</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"sources"</span>: Source[],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Discovered sources</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"findings"</span>: Finding[],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Accumulated findings</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"final_report"</span>: Report,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Synthesized output</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"status"</span>: <span style="color: #17a2b8;">string</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Session status</span><br>
                         }
                     </div>
                 </div>
@@ -329,6 +453,64 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Theme management
+        const htmlElement = document.documentElement;
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = document.getElementById('themeIcon');
+        const themeText = document.getElementById('themeText');
+
+        // Check system preference
+        function getSystemTheme() {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                return 'dark';
+            }
+            return 'light';
+        }
+
+        // Load theme from localStorage or system preference
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('docs-theme');
+            if (savedTheme) {
+                setTheme(savedTheme);
+            } else {
+                setTheme(getSystemTheme());
+            }
+        }
+
+        // Set theme
+        function setTheme(theme) {
+            htmlElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem('docs-theme', theme);
+            
+            if (theme === 'dark') {
+                themeIcon.className = 'bi bi-sun-fill';
+                themeText.textContent = 'Light';
+            } else {
+                themeIcon.className = 'bi bi-moon-fill';
+                themeText.textContent = 'Dark';
+            }
+        }
+
+        // Toggle theme
+        function toggleTheme() {
+            const currentTheme = htmlElement.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+        }
+
+        // Listen for system theme changes
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                // Only auto-switch if user hasn't manually set preference
+                if (!localStorage.getItem('docs-theme')) {
+                    setTheme(e.matches ? 'dark' : 'light');
+                }
+            });
+        }
+
+        // Load theme on page load
+        loadTheme();
+
         // Simple API health check
         async function checkHealth() {
             try {

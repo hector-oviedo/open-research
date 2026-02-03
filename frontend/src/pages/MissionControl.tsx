@@ -15,7 +15,7 @@ import { ReportViewer } from '../components/ReportViewer';
 import { SessionList } from '../components/SessionList';
 import { Card } from '../components/ui/Card';
 import { useResearchStore } from '../stores/researchStore';
-import { Terminal, Cpu } from 'lucide-react';
+import { Terminal, Cpu, BookOpen } from 'lucide-react';
 import { SettingsModal, type ResearchSettings } from '../components/SettingsModal';
 
 export function MissionControl() {
@@ -153,15 +153,18 @@ export function MissionControl() {
                 <p>gpt-oss:20b ROCm</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-500">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400' : 'bg-red-400'}`} />
+            <a 
+              href="http://localhost:8000/custom-docs" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 text-sm text-slate-500 hover:text-blue-400 transition-colors"
+            >
+              <BookOpen className="w-5 h-5" />
               <div>
-                <p className="font-medium text-slate-400">Connection</p>
-                <p className={isConnected ? 'text-emerald-400' : 'text-red-400'}>
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </p>
+                <p className="font-medium text-slate-400">Documentation</p>
+                <p>API Reference</p>
               </div>
-            </div>
+            </a>
           </div>
         </motion.footer>
       </main>

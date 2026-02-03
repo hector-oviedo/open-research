@@ -4,16 +4,17 @@
  * Displays the final research report with markdown rendering
  * and download functionality (Markdown + PDF).
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, FileCode } from 'lucide-react';
-import jsPDF from 'jspdf';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 import { SourceViewer } from './SourceViewer';
 import { useResearchStore } from '../stores/researchStore';
+import html2pdf from 'html2pdf.js';
+
 // Custom link component that opens in new tab
 const MarkdownLink = ({ href, children }: { href?: string; children?: React.ReactNode }) => {
   return (
@@ -30,6 +31,7 @@ const MarkdownLink = ({ href, children }: { href?: string; children?: React.Reac
 
 export function ReportViewer() {
   const { finalReport, status } = useResearchStore();
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   if (!finalReport || status !== 'completed') return null;
 
@@ -74,201 +76,30 @@ ${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - $
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const maxWidth = pageWidth - margin * 2;
-    let y = 20;
+  const handleDownloadPDF = async () => {
+    if (!pdfRef.current) return;
 
-    // Helper function to add text with proper line height
-    const addText = (text: string, x: number, yPos: number, options?: { maxWidth?: number; lineHeight?: number }) => {
-      const opts = { maxWidth: maxWidth, lineHeight: 5, ...options };
-      const lines = doc.splitTextToSize(text, opts.maxWidth!);
-      doc.text(lines, x, yPos);
-      return yPos + (lines.length * opts.lineHeight!);
+    const opt = {
+      margin: [15, 15, 15, 15],
+      filename: `${title.toLowerCase().replace(/\s+/g, '-')}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { 
+        scale: 2,
+        useCORS: true,
+        letterRendering: true,
+      },
+      jsPDF: { 
+        unit: 'mm', 
+        format: 'a4', 
+        orientation: 'portrait',
+      },
     };
 
-    // Helper to check page overflow
-    const checkNewPage = (currentY: number, neededSpace: number = 30) => {
-      if (currentY + neededSpace > pageHeight - margin) {
-        doc.addPage();
-        return margin + 10;
-      }
-      return currentY;
-    };
-
-    // ========== HEADER ==========
-    // Title - centered, large, bold
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(33, 37, 41);
-    const titleLines = doc.splitTextToSize(title, maxWidth);
-    doc.text(titleLines, pageWidth / 2, y, { align: 'center' });
-    y += (titleLines.length * 8) + 5;
-
-    // Subtitle/Date
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(108, 117, 125);
-    const date = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-    doc.text(`Research Report | ${date}`, pageWidth / 2, y, { align: 'center' });
-    y += 12;
-
-    // Horizontal line
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 15;
-
-    // ========== METADATA BOX ==========
-    doc.setFillColor(248, 249, 250);
-    doc.setDrawColor(222, 226, 230);
-    doc.roundedRect(margin, y - 5, maxWidth, 20, 3, 3, 'FD');
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(73, 80, 87);
-    const metaText = `Word Count: ${word_count} words | Sources: ${sources_used.length} | Confidence: ${confidence_assessment.split('.')[0] || 'High'}`;
-    doc.text(metaText, pageWidth / 2, y + 7, { align: 'center' });
-    y += 30;
-
-    // ========== EXECUTIVE SUMMARY ==========
-    y = checkNewPage(y, 60);
-    
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(33, 37, 41);
-    doc.text('Executive Summary', margin, y);
-    y += 10;
-
-    // Summary content with better formatting
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(52, 58, 64);
-    
-    // Clean up markdown for PDF
-    const cleanSummary = executive_summary
-      .replace(/\[🔗([^\]]+)\]\([^)]+\)/g, '$1') // Remove link markdown, keep text
-      .replace(/\*\*/g, '') // Remove bold
-      .replace(/\*/g, '') // Remove italic
-      .replace(/#/g, '') // Remove headers
-      .replace(/\n\n/g, '\n') // Normalize newlines
-      .trim();
-    
-    y = addText(cleanSummary, margin, y, { lineHeight: 6 });
-    y += 15;
-
-    // ========== SECTIONS ==========
-    sections.forEach((section, index) => {
-      y = checkNewPage(y, 80);
-
-      // Section heading with background
-      doc.setFillColor(233, 236, 239);
-      doc.roundedRect(margin, y - 6, maxWidth, 10, 2, 2, 'F');
-      
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(33, 37, 41);
-      doc.text(`${index + 1}. ${section.heading}`, margin + 3, y);
-      y += 15;
-
-      // Section content
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(52, 58, 64);
-      
-      // Clean content
-      const cleanContent = section.content
-        .replace(/\[🔗([^\]]+)\]\([^)]+\)/g, '$1 (source)')
-        .replace(/\*\*/g, '')
-        .replace(/\*/g, '')
-        .replace(/#/g, '')
-        .replace(/\n\n/g, '\n')
-        .trim();
-      
-      y = addText(cleanContent, margin, y, { lineHeight: 5.5 });
-      y += 12;
-    });
-
-    // ========== SOURCES PAGE ==========
-    doc.addPage();
-    y = margin + 10;
-
-    // Sources header
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(33, 37, 41);
-    doc.text('References & Sources', margin, y);
-    y += 12;
-
-    // Sources intro
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(108, 117, 125);
-    doc.text(`This research is based on ${sources_used.length} authoritative sources.`, margin, y);
-    y += 15;
-
-    // Source list
-    sources_used.forEach((source, index) => {
-      y = checkNewPage(y, 40);
-
-      // Source number box
-      doc.setFillColor(33, 37, 41);
-      doc.circle(margin + 3, y - 2, 4, 'F');
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text(String(index + 1), margin + 3, y - 1, { align: 'center' });
-
-      // Source title
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(33, 37, 41);
-      const titleLines = doc.splitTextToSize(source.title || 'Untitled Source', maxWidth - 15);
-      doc.text(titleLines, margin + 12, y);
-      y += (titleLines.length * 5) + 3;
-
-      // Reliability badge
-      const reliability = source.reliability || 'medium';
-      const reliabilityColors: Record<string, [number, number, number]> = {
-        high: [40, 167, 69],
-        medium: [255, 193, 7],
-        low: [108, 117, 125]
-      };
-      const color = reliabilityColors[reliability] || reliabilityColors.medium;
-      doc.setFillColor(color[0], color[1], color[2]);
-      doc.roundedRect(margin + 12, y - 4, 25, 7, 2, 2, 'F');
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text(reliability.toUpperCase(), margin + 24.5, y + 1, { align: 'center' });
-      y += 10;
-
-      // URL
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(13, 110, 253);
-      const urlLines = doc.splitTextToSize(source.url, maxWidth - 15);
-      doc.text(urlLines, margin + 12, y);
-      y += (urlLines.length * 4) + 10;
-    });
-
-    // ========== FOOTER ==========
-    const totalPages = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Generated by Deep Research System | Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    try {
+      await html2pdf().set(opt).from(pdfRef.current).save();
+    } catch (error) {
+      console.error('PDF generation failed:', error);
     }
-
-    doc.save(`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`);
   };
 
   return (
@@ -293,6 +124,145 @@ ${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - $
           </div>
         }
       >
+        {/* Hidden PDF content - rendered in light mode for printing */}
+        <div 
+          ref={pdfRef} 
+          style={{ 
+            position: 'absolute', 
+            left: '-9999px',
+            width: '210mm',
+            padding: '15mm',
+            background: 'white',
+            color: 'black',
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: '11pt',
+            lineHeight: '1.6',
+          }}
+        >
+          {/* PDF Title */}
+          <h1 style={{ 
+            fontSize: '24pt', 
+            fontWeight: 'bold', 
+            marginBottom: '8pt',
+            borderBottom: '2pt solid #333',
+            paddingBottom: '8pt',
+            color: '#000'
+          }}>
+            {title}
+          </h1>
+          
+          {/* PDF Metadata */}
+          <p style={{ 
+            fontSize: '10pt', 
+            color: '#555', 
+            marginBottom: '20pt',
+            fontStyle: 'italic'
+          }}>
+            Research Report | {new Date().toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })} | {word_count} words | {sources_used.length} sources
+          </p>
+
+          {/* Executive Summary */}
+          <h2 style={{ 
+            fontSize: '16pt', 
+            fontWeight: 'bold', 
+            marginTop: '20pt',
+            marginBottom: '12pt',
+            color: '#000'
+          }}>
+            Executive Summary
+          </h2>
+          <div style={{ 
+            marginBottom: '20pt',
+            textAlign: 'justify'
+          }}>
+            {executive_summary.split('\n').map((paragraph, idx) => (
+              <p key={idx} style={{ marginBottom: '8pt' }}>
+                {paragraph.replace(/\[🔗([^\]]+)\]\(([^)]+)\)/g, '$1')}
+              </p>
+            ))}
+          </div>
+
+          {/* Sections */}
+          {sections.map((section, index) => (
+            <div key={index} style={{ marginBottom: '20pt' }}>
+              <h3 style={{ 
+                fontSize: '14pt', 
+                fontWeight: 'bold',
+                marginTop: '16pt',
+                marginBottom: '10pt',
+                color: '#000',
+                borderLeft: '3pt solid #333',
+                paddingLeft: '8pt'
+              }}>
+                {index + 1}. {section.heading}
+              </h3>
+              <div style={{ textAlign: 'justify' }}>
+                {section.content.split('\n\n').map((paragraph, pidx) => (
+                  <p key={pidx} style={{ marginBottom: '8pt' }}>
+                    {paragraph.replace(/\[🔗([^\]]+)\]\(([^)]+)\)/g, '$1')}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Sources */}
+          <h2 style={{ 
+            fontSize: '16pt', 
+            fontWeight: 'bold', 
+            marginTop: '24pt',
+            marginBottom: '12pt',
+            color: '#000',
+            pageBreakBefore: 'always'
+          }}>
+            References
+          </h2>
+          <div style={{ fontSize: '10pt' }}>
+            {sources_used.map((source, index) => (
+              <div key={index} style={{ 
+                marginBottom: '10pt',
+                paddingLeft: '20pt',
+                textIndent: '-20pt'
+              }}>
+                <span style={{ fontWeight: 'bold' }}>{index + 1}.</span>{' '}
+                <span style={{ fontWeight: 'bold' }}>{source.title || 'Untitled'}</span>
+                <span style={{ 
+                  fontStyle: 'italic',
+                  color: source.reliability === 'high' ? '#28a745' : 
+                         source.reliability === 'medium' ? '#ffc107' : '#6c757d',
+                  marginLeft: '5pt'
+                }}>
+                  [{source.reliability || 'unknown'}]
+                </span>
+                <br />
+                <span style={{ color: '#0066cc' }}>{source.url}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Confidence Assessment */}
+          <h2 style={{ 
+            fontSize: '16pt', 
+            fontWeight: 'bold', 
+            marginTop: '24pt',
+            marginBottom: '12pt',
+            color: '#000'
+          }}>
+            Confidence Assessment
+          </h2>
+          <div style={{ textAlign: 'justify' }}>
+            {confidence_assessment.split('\n').map((paragraph, idx) => (
+              <p key={idx} style={{ marginBottom: '8pt' }}>
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        </div>
+
         {/* Executive Summary */}
         <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">
           <h4 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
