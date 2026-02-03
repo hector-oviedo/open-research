@@ -29,6 +29,7 @@ from app.agents.summarizer import get_summarizer
 from app.agents.reviewer import get_reviewer
 from app.agents.writer import get_writer
 from app.core.checkpointer import get_checkpointer
+from app.core.content_fetcher import get_content_fetcher
 
 logger = logging.getLogger(__name__)
 
@@ -275,10 +276,9 @@ class ResearchGraph:
     
     async def _summarizer_node(self, state: ResearchState) -> ResearchState:
         """
-        Summarizer node - Compresses all source content.
+        Summarizer node - Fetches and compresses real source content.
         
-        Note: This is a simplified implementation. In production,
-        this would fetch and process actual source content.
+        Fetches actual web content from discovered sources and summarizes it.
         
         Args:
             state: Current ResearchState with sources
@@ -287,44 +287,64 @@ class ResearchGraph:
             ResearchState: Updated state with findings
         """
         session_id = state.get("session_id", "unknown")
-        logger.info("[Graph] Running Summarizer node")
+        logger.info("[Graph] Running Summarizer node (with real content fetching)")
         
         await self._emit_event(
             "summarizer_running",
-            "Extracting key facts and compressing content 10:1 ratio...",
+            "Fetching and analyzing source content...",
             session_id
         )
         
         summarizer = get_summarizer()
+        fetcher = get_content_fetcher()
         sources = state.get("sources", [])
         plan = state.get("plan", [])
         findings = []
         total_key_facts = 0
+        fetched_count = 0
+        failed_count = 0
         
         # Create a map of sub-question IDs to questions
         sq_map = {sq.get("id"): sq.get("question", "") for sq in plan}
         
-        # Summarize each source (in production, would fetch content first)
-        for source in sources[:5]:  # Limit to top 5 for demo
+        # Process each source - fetch real content
+        for source in sources[:5]:  # Limit to top 5 to avoid timeouts
             sq_id = source.get("sub_question_id", "unknown")
             question = sq_map.get(sq_id, "")
-            
-            # Mock content for demonstration
-            # In production, this would be fetched from source["url"]
-            mock_content = f"Content from {source.get('title', 'Unknown')} about {question}"
+            url = source.get("url", "")
+            title = source.get("title", "Unknown")
             
             try:
+                # Fetch real content from URL
+                content = await fetcher.fetch_content(url)
+                
+                if content:
+                    fetched_count += 1
+                    await self._emit_event(
+                        "summarizer_fetch",
+                        f"Fetched {len(content)} chars from {title[:50]}...",
+                        session_id,
+                        source_url=url,
+                        content_length=len(content)
+                    )
+                else:
+                    failed_count += 1
+                    # Fallback: use title and description as minimal content
+                    content = f"Source: {title}\nURL: {url}\n\n[Content could not be fetched - using title and metadata only]"
+                    logger.warning(f"[Graph] Could not fetch content from {url}, using fallback")
+                
+                # Summarize the fetched content
                 result = await summarizer.summarize(
-                    content=mock_content,
+                    content=content,
                     sub_question=question,
-                    source_title=source.get("title", "Unknown"),
-                    source_url=source.get("url", ""),
+                    source_title=title,
+                    source_url=url,
                 )
                 
                 finding = result.get("findings", {})
                 finding["source_info"] = {
-                    "url": source.get("url", ""),
-                    "title": source.get("title", "Unknown"),
+                    "url": url,
+                    "title": title,
                     "reliability": source.get("reliability", "unknown"),
                 }
                 finding["sub_question_id"] = sq_id
@@ -335,7 +355,8 @@ class ResearchGraph:
                 total_key_facts += len(key_facts)
                 
             except Exception as e:
-                logger.warning(f"[Graph] Failed to summarize {source.get('url', 'unknown')}: {e}")
+                failed_count += 1
+                logger.warning(f"[Graph] Failed to process {url}: {e}")
                 continue
         
         # Merge with existing findings (from previous iterations)
@@ -346,22 +367,26 @@ class ResearchGraph:
         if total_key_facts == 0 and len(sources) > 0:
             await self._emit_event(
                 "summarizer_retry",
-                "No key facts extracted. Extending search with broader queries...",
+                f"No key facts extracted ({fetched_count} fetched, {failed_count} failed). Extending search...",
                 session_id,
-                retry_reason="zero_key_facts"
+                retry_reason="zero_key_facts",
+                fetched_count=fetched_count,
+                failed_count=failed_count
             )
             state["needs_finder_retry"] = True
         else:
             state["needs_finder_retry"] = False
             await self._emit_event(
                 "summarizer_complete",
-                f"Extracted {total_key_facts} key facts from {len(findings)} sources (10:1 compression)",
+                f"Extracted {total_key_facts} key facts from {len(findings)} sources ({fetched_count} fetched, {failed_count} failed)",
                 session_id,
                 findings_count=len(findings),
-                key_facts_count=total_key_facts
+                key_facts_count=total_key_facts,
+                fetched_count=fetched_count,
+                failed_count=failed_count
             )
         
-        logger.info(f"[Graph] Summarizer complete: {len(findings)} new findings, {total_key_facts} key facts")
+        logger.info(f"[Graph] Summarizer complete: {len(findings)} findings, {total_key_facts} facts, {fetched_count} fetched, {failed_count} failed")
         return state
     
     async def _reviewer_node(self, state: ResearchState) -> ResearchState:
