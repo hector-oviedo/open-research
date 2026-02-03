@@ -6,6 +6,7 @@
 import { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useResearchStore } from '../stores/researchStore';
+import { SourceLink } from './SourceLink';
 import { 
   Play, 
   Search, 
@@ -15,7 +16,8 @@ import {
   AlertCircle,
   XCircle,
   Brain,
-  FileSearch
+  FileSearch,
+  Link2
 } from 'lucide-react';
 import type { TraceEvent } from '../types';
 
@@ -128,35 +130,39 @@ function EventItem({ event, index }: { event: TraceEvent; index: number }) {
             {event.message}
           </p>
         )}
-        {/* Display individual finder source */}
+        {/* Display individual finder source with link icon */}
         {event.type === 'finder_source' && event.source_url && (
-          <div className="mt-1">
-            <a
-              href={event.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-xs text-emerald-400/80 hover:text-emerald-400 truncate transition-colors"
-              title={event.source_url}
-            >
-              ↳ {event.source_title || new URL(event.source_url).hostname}
-            </a>
+          <div className="mt-2 pl-2 border-l-2 border-emerald-500/30">
+            <div className="flex items-center gap-1 text-xs text-emerald-400/70 mb-1">
+              <Link2 className="w-3 h-3" />
+              <span>Source discovered:</span>
+            </div>
+            <SourceLink
+              url={event.source_url}
+              title={event.source_title || undefined}
+              domain={event.source_domain || undefined}
+              variant="card"
+              size="sm"
+            />
           </div>
         )}
         {/* Display URLs for finder complete event */}
         {event.urls && event.urls.length > 0 && (
-          <div className="mt-2 space-y-0.5">
-            {event.urls.map((url: string, idx: number) => (
-              <a
-                key={idx}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-xs text-emerald-400/80 hover:text-emerald-400 truncate transition-colors"
-                title={url}
-              >
-                ↳ {new URL(url).hostname}
-              </a>
-            ))}
+          <div className="mt-2 pl-2 border-l-2 border-emerald-500/30">
+            <div className="flex items-center gap-1 text-xs text-emerald-400/70 mb-1">
+              <Link2 className="w-3 h-3" />
+              <span>Top sources:</span>
+            </div>
+            <div className="space-y-1">
+              {event.urls.map((url: string, idx: number) => (
+                <SourceLink
+                  key={idx}
+                  url={url}
+                  variant="inline"
+                  size="sm"
+                />
+              ))}
+            </div>
           </div>
         )}
         {/* Display questions for planner events */}
@@ -246,7 +252,7 @@ export function TraceLog({ onViewReport }: TraceLogProps) {
             <FileSearch className="w-5 h-5" />
             <span className="font-medium">See Report</span>
             <span className="text-sm text-emerald-500/70">
-              ({finalReport.wordCount} words)
+              ({finalReport.word_count} words)
             </span>
           </button>
         </motion.div>

@@ -214,23 +214,47 @@ class WriterAgent:
         self,
         findings: List[dict],
     ) -> List[dict]:
-        """Extract unique sources from findings."""
+        """Extract unique sources from findings with complete metadata."""
         sources = []
         seen_urls = set()
 
-        for finding in findings:
+        for i, finding in enumerate(findings, 1):
             source_info = finding.get("source_info", {})
             url = source_info.get("url", "")
 
             if url and url not in seen_urls:
                 seen_urls.add(url)
+                
+                # Extract domain from URL
+                domain = self._extract_domain(url)
+                
+                # Get confidence from metadata
+                metadata = finding.get("metadata", {})
+                confidence = metadata.get("confidence", 0.8)
+                
                 sources.append({
+                    "id": f"source-{i:03d}",
                     "url": url,
                     "title": source_info.get("title", "Unknown"),
-                    "reliability": source_info.get("reliability", "unknown"),
+                    "domain": domain,
+                    "reliability": source_info.get("reliability", "medium"),
+                    "confidence": confidence,
                 })
 
         return sources
+    
+    def _extract_domain(self, url: str) -> str:
+        """Extract domain from URL."""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            domain = parsed.netloc
+            # Remove www. prefix if present
+            if domain.startswith("www."):
+                domain = domain[4:]
+            return domain
+        except Exception:
+            return "unknown"
 
     def _validate_citations(
         self,
@@ -287,7 +311,7 @@ class WriterAgent:
             "title": "Research Report (Error)",
             "executive_summary": f"Unable to generate complete report: {error_message}",
             "sections": [],
-            "sources_used": [],
+            "sources_used": [],  # Empty but with consistent structure
             "confidence_assessment": "Failed - insufficient data",
             "word_count": 0,
             "error": error_message,

@@ -160,9 +160,10 @@ curl http://localhost:5173
 | 🩷 **Writer** | Pink | Report Synthesis | Professional report with validated citations |
 
 **Resilience Features:**
-- **Finder Streaming**: Sources appear one-by-one as discovered (not batched)
+- **Finder Streaming**: Sources appear one-by-one as discovered with clickable link icons
 - **Summarizer Retry**: If 0 key facts extracted, automatically extends search and retries
 - **Citation Validation**: All citations are validated against actual sources (no hallucination)
+- **Complete Source Metadata**: Each source includes id, url, title, domain, reliability, and confidence
 
 ### Data Flow
 
@@ -192,10 +193,20 @@ User Query → Planner → Finder → Summarizer → [0 facts?] → Finder (retr
 ### Report Viewer
 - Executive Summary with **Markdown rendering**
 - Multiple detailed sections with **formatted headers, lists, code blocks**
+- **Sources displayed as bullet list** with complete metadata
 - Source citations with reliability ratings (High/Medium/Low)
+- **Clickable link icons** next to each source for quick access
 - **Validated citations** - all citation numbers match actual sources
 - Confidence assessment
 - Download as Markdown or PDF
+
+### Source Link Component
+Throughout the dashboard, sources are displayed with:
+- **Favicon** from the source domain
+- **Clickable title** that opens the source in a new tab
+- **Domain name** extracted from URL
+- **Reliability badge** (High/Medium/Low)
+- **External link icon** on hover
 
 ### Keyboard Shortcuts
 | Shortcut | Action |
@@ -308,15 +319,28 @@ open-research/
 │       │   ├── AgentStatus.tsx
 │       │   ├── ReportViewer.tsx
 │       │   ├── SessionList.tsx
-│       │   └── TraceLog.tsx
+│       │   ├── SourceLink.tsx      # Reusable source link component
+│       │   ├── SourceViewer.tsx    # Source grid display
+│       │   ├── TraceLog.tsx
+│       │   └── ui/                 # Atomic UI components
+│       │       ├── Button.tsx
+│       │       ├── Card.tsx
+│       │       └── Badge.tsx
+│       ├── hooks/
+│       │   ├── useAgentStream.ts   # SSE streaming
+│       │   └── useResearch.ts      # Research API calls
 │       ├── stores/
-│       │   └── researchStore.ts
+│       │   └── researchStore.ts    # Zustand state
+│       ├── types/
+│       │   └── index.ts            # TypeScript types
 │       └── pages/
-│           └── MissionControl.tsx
+│           └── MissionControl.tsx  # Main dashboard
 │
 └── agent/                      # Project tracking
     ├── PLAN.md
     ├── PLAN2.md
+    ├── PLAN3.md
+    ├── PLAN4.md
     └── MEMORY.md
 ```
 

@@ -120,7 +120,10 @@ export function useAgentStream(): UseAgentStreamReturn {
             break;
             
           case 'research_completed':
-            completeResearch(data.final_report);
+            // Transform final_report from snake_case to match frontend types
+            if (data.final_report) {
+              completeResearch(data.final_report);
+            }
             setProgress(100);
             disconnect();
             break;

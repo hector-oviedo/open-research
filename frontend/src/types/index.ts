@@ -62,11 +62,11 @@ export interface Gap {
 
 export interface Report {
   title: string;
-  executiveSummary: string;
+  executive_summary: string;
   sections: ReportSection[];
-  sourcesUsed: Source[];
-  confidenceAssessment: string;
-  wordCount: number;
+  sources_used: Source[];
+  confidence_assessment: string;
+  word_count: number;
 }
 
 export interface ReportSection {
@@ -83,7 +83,7 @@ export interface TraceEvent {
   message?: string;  // Human-readable activity description
   details?: Record<string, unknown>;
   title?: string;
-  wordCount?: number;
+  word_count?: number;
   iterations?: number;
   error?: string;
   final_report?: Report;  // Full report on completion

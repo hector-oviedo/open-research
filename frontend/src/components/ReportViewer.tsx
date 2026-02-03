@@ -19,24 +19,24 @@ export function ReportViewer() {
 
   if (!finalReport || status !== 'completed') return null;
 
-  // Safety checks for report data
+  // Safety checks for report data - using snake_case from backend
   const title = finalReport.title || 'Untitled Report';
-  const wordCount = finalReport.wordCount || 0;
-  const sourcesUsed = finalReport.sourcesUsed || [];
+  const word_count = finalReport.word_count || 0;
+  const sources_used = finalReport.sources_used || [];
   const sections = finalReport.sections || [];
-  const executiveSummary = finalReport.executiveSummary || '';
-  const confidenceAssessment = finalReport.confidenceAssessment || '';
+  const executive_summary = finalReport.executive_summary || '';
+  const confidence_assessment = finalReport.confidence_assessment || '';
 
   const handleDownloadMarkdown = () => {
     const markdown = `# ${finalReport.title}
 
-${finalReport.executiveSummary}
+${finalReport.executive_summary}
 
 ## Report Details
 
-**Word Count:** ${finalReport.wordCount}
-**Sources Used:** ${sourcesUsed.length}
-**Confidence:** ${finalReport.confidenceAssessment}
+**Word Count:** ${finalReport.word_count}
+**Sources Used:** ${sources_used.length}
+**Confidence:** ${finalReport.confidence_assessment}
 
 ${finalReport.sections.map(s => `
 ## ${s.heading}
@@ -46,7 +46,7 @@ ${s.content}
 
 ## Sources
 
-${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${s.reliability || 'unknown'}`).join('\n')}
+${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${s.reliability || 'unknown'}`).join('\n')}
 `;
 
     const blob = new Blob([markdown], { type: 'text/markdown' });
@@ -76,7 +76,7 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
     // Metadata
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Word Count: ${wordCount} | Sources: ${sourcesUsed.length}`, margin, y);
+    doc.text(`Word Count: ${word_count} | Sources: ${sources_used.length}`, margin, y);
     y += 10;
 
     // Executive Summary
@@ -86,7 +86,7 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
     y += 8;
     doc.setFontSize(11);
     doc.setTextColor(50, 50, 50);
-    const summaryLines = doc.splitTextToSize(executiveSummary, maxWidth);
+    const summaryLines = doc.splitTextToSize(executive_summary, maxWidth);
     doc.text(summaryLines, margin, y);
     y += summaryLines.length * 6 + 10;
 
@@ -118,11 +118,11 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
 
     doc.setFontSize(14);
     doc.setTextColor(0, 0, 0);
-    doc.text(`Sources (${sourcesUsed.length})`, margin, y);
+    doc.text(`Sources (${sources_used.length})`, margin, y);
     y += 10;
 
     doc.setFontSize(10);
-    sourcesUsed.forEach((source, index) => {
+    sources_used.forEach((source, index) => {
       if (y > 280) {
         doc.addPage();
         y = 20;
@@ -150,7 +150,7 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
     >
       <Card
         title={title}
-        subtitle={`${wordCount} words • ${sourcesUsed.length} sources`}
+        subtitle={`${word_count} words • ${sources_used.length} sources`}
         headerAction={
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={handleDownloadPDF}>
@@ -171,7 +171,7 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
           </h4>
           <div className="prose prose-invert prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {executiveSummary}
+              {executive_summary}
             </ReactMarkdown>
           </div>
         </div>
@@ -192,7 +192,7 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
 
         {/* Sources */}
         <div className="mt-8 pt-6 border-t border-slate-800">
-          <SourceViewer sources={sourcesUsed} />
+          <SourceViewer sources={sources_used} />
         </div>
 
         {/* Confidence Assessment */}
@@ -200,7 +200,7 @@ ${sourcesUsed.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - ${
           <h4 className="text-sm font-medium text-slate-400 mb-2">Confidence Assessment</h4>
           <div className="prose prose-invert prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {confidenceAssessment}
+              {confidence_assessment}
             </ReactMarkdown>
           </div>
         </div>
