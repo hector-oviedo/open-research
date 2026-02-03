@@ -402,7 +402,49 @@
                 </div>
             </div>
 
-            <h5 class="mb-3 mt-4 text-muted">Testing</h5>
+            <h5 class="mb-3 mt-4 text-muted">Session Management</h5>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-get me-3">GET</span>
+                        <code>/api/research/sessions</code>
+                    </div>
+                    <p class="text-muted">List all research sessions (last 10)</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-get me-3">GET</span>
+                        <code>/api/research/sessions/{id}/report</code>
+                    </div>
+                    <p class="text-muted">Get the final report for a specific session</p>
+                </div>
+            </div>
+
+            <h5 class="mb-3 mt-4 text-muted">Agent Testing</h5>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code>/api/test/ollama</code>
+                    </div>
+                    <p class="text-muted">Test Ollama adapter connectivity</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code>/api/test/state</code>
+                    </div>
+                    <p class="text-muted">Test ResearchState structure</p>
+                </div>
+            </div>
 
             <div class="card endpoint-card mb-3">
                 <div class="card-body">
@@ -410,7 +452,47 @@
                         <span class="method-badge method-post me-3">POST</span>
                         <code>/api/test/planner</code>
                     </div>
-                    <p class="text-muted">Test Planner Agent</p>
+                    <p class="text-muted">Test Planner Agent - generates sub-questions</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code>/api/test/finder</code>
+                    </div>
+                    <p class="text-muted">Test Source Finder Agent - discovers sources</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code>/api/test/summarizer</code>
+                    </div>
+                    <p class="text-muted">Test Summarizer Agent - compresses content</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code>/api/test/reviewer</code>
+                    </div>
+                    <p class="text-muted">Test Reviewer Agent - detects gaps</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code>/api/test/writer</code>
+                    </div>
+                    <p class="text-muted">Test Writer Agent - synthesizes report</p>
                 </div>
             </div>
 
@@ -420,7 +502,17 @@
                         <span class="method-badge method-post me-3">POST</span>
                         <code>/api/test/graph</code>
                     </div>
-                    <p class="text-muted">Test full research graph end-to-end</p>
+                    <p class="text-muted">Test full research graph end-to-end (takes 5-10 min)</p>
+                </div>
+            </div>
+
+            <div class="card endpoint-card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="method-badge method-post me-3">POST</span>
+                        <code>/api/test/streaming</code>
+                    </div>
+                    <p class="text-muted">Test SSE streaming functionality</p>
                 </div>
             </div>
         </section>
@@ -428,18 +520,72 @@
         <!-- Schemas Section -->
         <section id="schemas" class="mb-5">
             <h3 class="mb-4"><i class="bi bi-file-code me-2"></i>Schemas</h3>
-            <div class="card">
+            
+            <div class="card mb-3">
                 <div class="card-body">
                     <h6 style="color: #667eea;">ResearchState (LangGraph State)</h6>
                     <div class="code-block">
                         {<br>
                         &nbsp;&nbsp;<span style="color: #ffc107;">"query"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Original user query</span><br>
-                        &nbsp;&nbsp;<span style="color: #ffc107;">"plan"</span>: ResearchPlan,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Generated research plan</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"session_id"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Unique session ID</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"plan"</span>: SubQuestion[],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Generated research plan</span><br>
                         &nbsp;&nbsp;<span style="color: #ffc107;">"sources"</span>: Source[],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Discovered sources</span><br>
-                        &nbsp;&nbsp;<span style="color: #ffc107;">"findings"</span>: Finding[],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Accumulated findings</span><br>
-                        &nbsp;&nbsp;<span style="color: #ffc107;">"final_report"</span>: Report,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Synthesized output</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"findings"</span>: Finding[],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Summarized findings</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"gaps"</span>: GapReport,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Reviewer gap analysis</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"final_report"</span>: Report,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Final research report</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"iteration"</span>: <span style="color: #17a2b8;">number</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Current iteration</span><br>
                         &nbsp;&nbsp;<span style="color: #ffc107;">"status"</span>: <span style="color: #17a2b8;">string</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Session status</span><br>
                         }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6 style="color: #667eea;">Report</h6>
+                    <div class="code-block">
+                        {<br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"title"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Report title</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"executive_summary"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;<span style="color: #6c757d;">// Overview</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"sections"</span>: Section[],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Content sections</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"sources_used"</span>: Source[],&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Cited sources</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"confidence_assessment"</span>: <span style="color: #17a2b8;">string</span>,<br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"word_count"</span>: <span style="color: #17a2b8;">number</span><br>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6 style="color: #667eea;">Source</h6>
+                    <div class="code-block">
+                        {<br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"id"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Unique ID</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"url"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Source URL</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"title"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Source title</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"domain"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// Domain name</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"reliability"</span>: <span style="color: #17a2b8;">string</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// high/medium/low</span><br>
+                        &nbsp;&nbsp;<span style="color: #ffc107;">"confidence"</span>: <span style="color: #17a2b8;">number</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #6c757d;">// 0-1 score</span><br>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h6 style="color: #667eea;">SSE Event Types</h6>
+                    <div class="code-block">
+                        <span style="color: #28a745;">// Agent Events</span><br>
+                        planner_running, planner_complete<br>
+                        finder_running, finder_source, finder_complete<br>
+                        summarizer_running, summarizer_complete<br>
+                        reviewer_running, reviewer_complete<br>
+                        writer_running, writer_complete<br><br>
+                        <span style="color: #28a745;">// Session Events</span><br>
+                        research_started, research_completed<br>
+                        research_error, research_stopped<br>
+                        heartbeat, connected
                     </div>
                 </div>
             </div>
