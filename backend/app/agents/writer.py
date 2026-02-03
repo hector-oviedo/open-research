@@ -88,14 +88,21 @@ class WriterAgent:
     ) -> str:
         """Build structured context for the writer LLM."""
         context_parts = []
+        
+        logger.info(f"[Writer] Building context with {len(findings)} findings, query: '{query[:50]}...'")
 
         # Original query
         context_parts.append(f"# Original Research Query\n{query}\n")
 
         # Research plan
         context_parts.append("## Research Plan (Sub-Questions)")
-        for i, question in enumerate(plan, 1):
-            context_parts.append(f"{i}. {question}")
+        for i, sq in enumerate(plan, 1):
+            # Handle both dict and string formats
+            if isinstance(sq, dict):
+                question_text = sq.get("question", str(sq))
+            else:
+                question_text = str(sq)
+            context_parts.append(f"{i}. {question_text}")
         context_parts.append("")
 
         # All findings with EXPLICIT source numbering for citations
@@ -170,6 +177,11 @@ class WriterAgent:
         import json
 
         content = content.strip()
+        logger.info(f"[Writer] Raw response length: {len(content)} chars")
+        
+        if not content:
+            logger.error("[Writer] Empty response from LLM")
+            return self._create_error_report("LLM returned empty response")
 
         # Handle potential markdown code blocks
         if content.startswith("```json"):
@@ -182,9 +194,11 @@ class WriterAgent:
 
         try:
             report = json.loads(content)
-        except json.JSONDecodeError:
+            logger.info(f"[Writer] Parsed JSON report with keys: {list(report.keys())}")
+        except json.JSONDecodeError as e:
             # Fallback: treat as raw markdown report
-            logger.warning("Failed to parse JSON report, using fallback structure")
+            logger.warning(f"[Writer] Failed to parse JSON report: {e}")
+            logger.info(f"[Writer] Using fallback with raw content ({len(content)} chars)")
             report = {
                 "title": "Research Report",
                 "executive_summary": content[:500] if len(content) > 500 else content,
@@ -194,8 +208,19 @@ class WriterAgent:
                 "word_count": len(content.split()),
             }
 
+        # Ensure required fields exist
+        if not report.get("title"):
+            report["title"] = "Research Report"
+        if not report.get("executive_summary"):
+            report["executive_summary"] = "No executive summary generated."
+        if not report.get("sections"):
+            report["sections"] = []
+        if not report.get("confidence_assessment"):
+            report["confidence_assessment"] = "Confidence not assessed."
+
         # Ensure sources_used is populated if empty
         if not report.get("sources_used"):
+            logger.info("[Writer] Populating sources_used from findings")
             report["sources_used"] = self._extract_sources_from_findings(findings)
 
         # Validate and fix citations
@@ -207,6 +232,7 @@ class WriterAgent:
             for section in report.get("sections", []):
                 total_text += section.get("content", "")
             report["word_count"] = len(total_text.split())
+            logger.info(f"[Writer] Calculated word count: {report['word_count']}")
 
         return report
 

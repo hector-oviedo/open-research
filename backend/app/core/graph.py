@@ -436,16 +436,25 @@ class ResearchGraph:
             ResearchState: Updated state with final report
         """
         session_id = state.get("session_id", "unknown")
-        logger.info("[Graph] Running Writer node")
+        findings = state.get("findings", [])
+        sources = state.get("sources", [])
+        
+        logger.info(f"[Graph] Running Writer node with {len(findings)} findings, {len(sources)} sources")
         
         await self._emit_event(
             "writer_running",
-            "Synthesizing findings into professional report with citations...",
+            f"Synthesizing {len(findings)} findings into professional report with citations...",
             session_id
         )
         
         writer = get_writer()
         report = await writer.write_report(state)
+        
+        # Log report details
+        word_count = report.get("word_count", 0)
+        sections_count = len(report.get("sections", []))
+        exec_summary_len = len(report.get("executive_summary", ""))
+        logger.info(f"[Graph] Report generated: {word_count} words, {sections_count} sections, summary: {exec_summary_len} chars")
         
         state["final_report"] = report
         state["status"] = "completed"
