@@ -55,6 +55,7 @@ class VLLMAdapter:
         messages: list[dict[str, str]],
         enable_thinking: bool = False,
         stream: bool = False,
+        response_format: str | dict | None = None,
     ) -> dict | AsyncGenerator[str, None]:
         """
         Send a chat completion request to Ollama.
@@ -63,6 +64,7 @@ class VLLMAdapter:
             messages: List of message dicts with 'role' and 'content'
             enable_thinking: If True, injects thinking config for Planner/Reviewer
             stream: If True, returns an async generator of response chunks
+            response_format: Optional Ollama response format (e.g. "json")
         
         Returns:
             Either a complete response dict or an async generator for streaming
@@ -82,6 +84,9 @@ class VLLMAdapter:
                 "num_predict": self.max_tokens,
             },
         }
+
+        if response_format is not None:
+            payload["format"] = response_format
         
         # Inject thinking configuration for Planner/Reviewer agents
         if enable_thinking:

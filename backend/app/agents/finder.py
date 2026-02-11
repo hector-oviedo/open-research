@@ -13,7 +13,6 @@ from typing import Any
 
 from ddgs import DDGS
 
-from app.core.config import settings
 from app.models.state import SourceFinderOutput, Source
 from app.agents.prompts import load_prompt
 from app.core.ollama_adapter import get_adapter
@@ -65,6 +64,9 @@ class SourceFinderAgent:
         self,
         sub_question: str,
         sub_question_id: str,
+        max_results_per_query: int | None = None,
+        max_sources_total: int | None = None,
+        enforce_diversity: bool = True,
     ) -> SourceFinderOutput:
         """
         Find diverse sources for a sub-question.
@@ -90,22 +92,29 @@ class SourceFinderAgent:
         # Step 2: Execute searches
         all_sources: list[Source] = []
         domain_counts: dict[str, int] = {}
+        results_per_query = max_results_per_query or self.max_results_per_query
+        sources_limit = max_sources_total or self.max_sources_total
+        max_per_domain = 2 if enforce_diversity else 99999
         
         for query_data in queries:
+            if not isinstance(query_data, dict):
+                continue
             query = query_data.get("query", "")
             if not query:
                 continue
             
             # Search
-            search_results = self._execute_search(query)
+            search_results = self._execute_search(query, max_results=results_per_query)
             
             # Filter by diversity
             for result in search_results:
+                if not isinstance(result, dict):
+                    continue
                 source = self._create_source(result, sub_question_id)
                 domain = source.get("domain", "")
                 
                 # Check domain diversity (max 2 per domain)
-                if domain_counts.get(domain, 0) >= 2:
+                if domain_counts.get(domain, 0) >= max_per_domain:
                     continue
                 
                 # Add source
@@ -113,10 +122,10 @@ class SourceFinderAgent:
                 domain_counts[domain] = domain_counts.get(domain, 0) + 1
                 
                 # Stop if we have enough sources
-                if len(all_sources) >= self.max_sources_total:
+                if len(all_sources) >= sources_limit:
                     break
             
-            if len(all_sources) >= self.max_sources_total:
+            if len(all_sources) >= sources_limit:
                 break
         
         return SourceFinderOutput(sources=all_sources)
@@ -147,7 +156,7 @@ Generate search queries to find diverse, authoritative sources for this research
         content = response.get("message", {}).get("content", "")
         return self._parse_search_plan(content)
     
-    def _execute_search(self, query: str) -> list[dict[str, Any]]:
+    def _execute_search(self, query: str, max_results: int) -> list[dict[str, Any]]:
         """
         Execute search using DuckDuckGo.
         
@@ -159,11 +168,11 @@ Generate search queries to find diverse, authoritative sources for this research
         """
         try:
             with DDGS() as ddgs:
-                results = list(ddgs.text(
+                raw_results = list(ddgs.text(
                     query,
-                    max_results=self.max_results_per_query,
+                    max_results=max_results,
                 ))
-                return results
+                return [item for item in raw_results if isinstance(item, dict)]
         except Exception as e:
             # Log error and return empty list
             print(f"Search error for query '{query}': {e}")
@@ -181,10 +190,12 @@ Generate search queries to find diverse, authoritative sources for this research
             Source: Normalized source object
         """
         from urllib.parse import urlparse
-        from datetime import datetime
+        from datetime import datetime, timezone
         
         url = result.get("href", "")
         domain = urlparse(url).netloc
+        reliability = self._estimate_reliability(domain)
+        confidence = 0.8 if reliability == "high" else 0.65 if reliability == "medium" else 0.5
         
         return Source(
             id=f"src-{sub_question_id}-{hash(url) % 10000:04d}",
@@ -192,9 +203,22 @@ Generate search queries to find diverse, authoritative sources for this research
             title=result.get("title", "Untitled"),
             content=result.get("body", ""),
             domain=domain,
-            confidence=0.7,  # Base confidence, can be refined
-            timestamp=datetime.utcnow().isoformat(),
+            reliability=reliability,
+            confidence=confidence,
+            timestamp=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         )
+
+    def _estimate_reliability(self, domain: str) -> str:
+        """Estimate source reliability from domain traits."""
+        trusted_suffixes = (".gov", ".edu")
+        trusted_domains = ("nature.com", "science.org", "arxiv.org", "github.com")
+        if any(domain.endswith(suffix) for suffix in trusted_suffixes):
+            return "high"
+        if any(domain.endswith(item) for item in trusted_domains):
+            return "high"
+        if "." in domain:
+            return "medium"
+        return "low"
     
     def _parse_search_plan(self, content: str) -> dict[str, Any]:
         """

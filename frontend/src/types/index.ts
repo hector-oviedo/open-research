@@ -13,6 +13,20 @@ export interface ResearchState {
   status: 'idle' | 'running' | 'completed' | 'error' | 'stopped';
   error: string | null;
   sessionId: string | null;
+  viewMode: 'workspace' | 'result';
+  researchOptions: ResearchOptions;
+}
+
+export interface ResearchOptions {
+  maxIterations: number;
+  maxSources: number;
+  maxSourcesPerQuestion: number;
+  searchResultsPerQuery: number;
+  sourceDiversity: boolean;
+  reportLength: 'short' | 'medium' | 'long';
+  includeSessionMemory: boolean;
+  sessionMemoryLimit: number;
+  summarizerSourceLimit: number;
 }
 
 export interface SubQuestion {
@@ -28,7 +42,7 @@ export interface Source {
   url: string;
   title: string;
   domain: string;
-  reliability: 'high' | 'medium' | 'low';
+  reliability: 'high' | 'medium' | 'low' | 'unknown';
   confidence: number;
   subQuestionId?: string;
 }
@@ -76,7 +90,8 @@ export interface ReportSection {
 
 export interface TraceEvent {
   type: string;
-  sessionId: string;
+  sessionId?: string;
+  session_id?: string;
   timestamp: string;
   node?: string;
   event?: string;
@@ -94,6 +109,7 @@ export interface TraceEvent {
   source_url?: string;
   source_domain?: string;
   sources_so_far?: number;
+  next_action?: 'iterate' | 'finish';
 }
 
 export interface AgentStatus {

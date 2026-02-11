@@ -17,12 +17,15 @@ Safeguards:
 - Checkpoint persistence for resume
 """
 
+import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Literal
 
 from langgraph.graph import StateGraph, END
 
 from app.models.state import ResearchState, create_initial_state
+from app.models.research import ResearchOptions
 from app.agents.planner import get_planner
 from app.agents.finder import get_finder
 from app.agents.summarizer import get_summarizer
@@ -79,6 +82,21 @@ class ResearchGraph:
         
         # Build the graph structure
         self._build_graph()
+
+    @staticmethod
+    def _resolve_options(state: ResearchState) -> ResearchOptions:
+        """Load runtime options from state with robust defaults."""
+        raw = state.get("options", {})
+        if isinstance(raw, dict):
+            return ResearchOptions.model_validate(raw)
+        return ResearchOptions()
+
+    @staticmethod
+    def _list_of_dicts(value) -> list[dict]:
+        """Return only dictionary entries from a potentially malformed list payload."""
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, dict)]
     
     def _build_graph(self) -> None:
         """
@@ -130,12 +148,11 @@ class ResearchGraph:
     async def _emit_event(self, event_type: str, message: str, session_id: str, **extra):
         """Emit an event if event_emitter is configured."""
         if self.event_emitter:
-            from datetime import datetime
             await self.event_emitter({
                 "type": event_type,
                 "message": message,
                 "session_id": session_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
                 **extra
             })
     
@@ -165,7 +182,8 @@ class ResearchGraph:
         planner = get_planner()
         
         # Check if this is an iteration (has gap recommendations)
-        gaps = state.get("gaps", {})
+        gaps_raw = state.get("gaps", {})
+        gaps = gaps_raw if isinstance(gaps_raw, dict) else {}
         iteration = state.get("iteration", 0) + 1
         state["iteration"] = iteration
         
@@ -182,19 +200,29 @@ class ResearchGraph:
         else:
             query = state["query"]
         
-        result = await planner.plan(query)
-        state["plan"] = result["plan"]
+        options = self._resolve_options(state)
+        session_memory = state.get("session_memory", [])
+        if not isinstance(session_memory, list):
+            session_memory = []
+
+        result = await planner.plan(
+            query=query,
+            session_memory=session_memory,
+            options=options,
+        )
+        plan = self._list_of_dicts(result.get("plan", []))
+        state["plan"] = plan
         
-        sub_questions = [sq.get("question", "") for sq in result["plan"]]
+        sub_questions = [sq.get("question", "") for sq in plan]
         await self._emit_event(
             "planner_complete",
-            f"Generated {len(result['plan'])} sub-questions to research",
+            f"Generated {len(plan)} sub-questions to research",
             session_id,
-            sub_questions_count=len(result["plan"]),
+            sub_questions_count=len(plan),
             questions=sub_questions
         )
         
-        logger.info(f"[Graph] Planner generated {len(result['plan'])} sub-questions")
+        logger.info(f"[Graph] Planner generated {len(plan)} sub-questions")
         return state
     
     async def _finder_node(self, state: ResearchState) -> ResearchState:
@@ -217,8 +245,8 @@ class ResearchGraph:
         )
         
         finder = get_finder()
-        plan = state.get("plan", [])
-        all_sources = []
+        options = self._resolve_options(state)
+        plan = self._list_of_dicts(state.get("plan", []))
         
         # Find sources for each sub-question
         seen_urls = set()
@@ -230,9 +258,15 @@ class ResearchGraph:
             question = sq.get("question", "")
             
             logger.info(f"[Graph] Finding sources for: {question[:50]}...")
-            result = await finder.find_sources(question, sq_id)
+            result = await finder.find_sources(
+                question,
+                sq_id,
+                max_results_per_query=options.search_results_per_query,
+                max_sources_total=options.max_sources_per_question,
+                enforce_diversity=options.source_diversity,
+            )
             
-            sources = result.get("sources", [])
+            sources = self._list_of_dicts(result.get("sources", []))
             
             # Stream each new source as it's found (with deduplication)
             for source in sources:
@@ -256,11 +290,16 @@ class ResearchGraph:
                     )
             
             logger.info(f"[Graph] Found {len(sources)} sources for {sq_id}")
+            if len(unique_sources) >= options.max_sources:
+                break
+
+        if len(unique_sources) > options.max_sources:
+            unique_sources = unique_sources[: options.max_sources]
         
         state["sources"] = unique_sources
         
         # Get sample URLs for display (first 5)
-        sample_urls = [s.get("url", "") for s in unique_sources[:5] if s.get("url")]
+        sample_urls = [s.get("url", "") for s in unique_sources[:5] if isinstance(s, dict) and s.get("url")]
         
         await self._emit_event(
             "finder_complete",
@@ -297,8 +336,9 @@ class ResearchGraph:
         
         summarizer = get_summarizer()
         fetcher = get_content_fetcher()
-        sources = state.get("sources", [])
-        plan = state.get("plan", [])
+        sources = self._list_of_dicts(state.get("sources", []))
+        options = self._resolve_options(state)
+        plan = self._list_of_dicts(state.get("plan", []))
         findings = []
         total_key_facts = 0
         fetched_count = 0
@@ -308,7 +348,7 @@ class ResearchGraph:
         sq_map = {sq.get("id"): sq.get("question", "") for sq in plan}
         
         # Process each source - fetch real content
-        for source in sources[:5]:  # Limit to top 5 to avoid timeouts
+        for source in sources[: options.summarizer_source_limit]:
             sq_id = source.get("sub_question_id", "unknown")
             question = sq_map.get(sq_id, "")
             url = source.get("url", "")
@@ -360,7 +400,7 @@ class ResearchGraph:
                 continue
         
         # Merge with existing findings (from previous iterations)
-        existing_findings = state.get("findings", [])
+        existing_findings = self._list_of_dicts(state.get("findings", []))
         state["findings"] = existing_findings + findings
         
         # Check if we got 0 key facts - need to retry finder with extended search
@@ -409,15 +449,16 @@ class ResearchGraph:
         )
         
         reviewer = get_reviewer()
-        plan = state.get("plan", [])
-        findings = state.get("findings", [])
+        options = self._resolve_options(state)
+        plan = self._list_of_dicts(state.get("plan", []))
+        findings = self._list_of_dicts(state.get("findings", []))
         iteration = state.get("iteration", 1)
         
         result = await reviewer.review(
             plan=plan,
             findings=findings,
             iteration=iteration,
-            max_iterations=self.max_iterations,
+            max_iterations=options.max_iterations,
         )
         
         gap_report = result.get("gap_report", {})
@@ -427,7 +468,7 @@ class ResearchGraph:
         has_gaps = gap_report.get("has_gaps", False)
         confidence = gap_report.get("confidence", 0)
         
-        if has_gaps and iteration < self.max_iterations:
+        if has_gaps and iteration < options.max_iterations:
             await self._emit_event(
                 "reviewer_complete",
                 f"Found {gaps_count} gaps (confidence: {confidence:.0%}). Starting iteration {iteration + 1}...",
@@ -473,7 +514,8 @@ class ResearchGraph:
         )
         
         writer = get_writer()
-        report = await writer.write_report(state)
+        options = self._resolve_options(state)
+        report = await writer.write_report(state, report_length=options.report_length)
         
         # Log report details
         word_count = report.get("word_count", 0)
@@ -513,13 +555,15 @@ class ResearchGraph:
         Returns:
             str: "continue" to iterate or "finish" to write report
         """
+        options = self._resolve_options(state)
         iteration = state.get("iteration", 1)
-        gaps = state.get("gaps", {})
+        gaps_raw = state.get("gaps", {})
+        gaps = gaps_raw if isinstance(gaps_raw, dict) else {}
         has_gaps = gaps.get("has_gaps", False)
         
         # Safeguard: max iterations
-        if iteration >= self.max_iterations:
-            logger.info(f"[Graph] Router: max iterations ({self.max_iterations}) reached, finishing")
+        if iteration >= options.max_iterations:
+            logger.info(f"[Graph] Router: max iterations ({options.max_iterations}) reached, finishing")
             return "finish"
         
         # No gaps, research is satisfactory
@@ -556,7 +600,14 @@ class ResearchGraph:
         logger.info("[Graph] Summarizer router: continuing to reviewer")
         return "continue"
     
-    async def run(self, query: str, session_id: str, timeout: float = 300.0) -> ResearchState:
+    async def run(
+        self,
+        query: str,
+        session_id: str,
+        timeout: float = 300.0,
+        options: ResearchOptions | None = None,
+        session_memory: list[dict] | None = None,
+    ) -> ResearchState:
         """
         Run a complete research session through the full graph.
         
@@ -577,18 +628,24 @@ class ResearchGraph:
             >>> print(result["final_report"]["title"])
         """
         initial_state = create_initial_state(query, session_id)
+        effective_options = options or ResearchOptions(max_iterations=self.max_iterations)
+        initial_state["options"] = effective_options.model_dump(mode="json")
+        initial_state["session_memory"] = session_memory or []
         
         # Compile with checkpointer for persistence
         compiled = self.builder.compile(checkpointer=self.checkpointer.saver)
         
         logger.info(f"[Graph] Starting research session: {session_id}")
         logger.info(f"[Graph] Query: {query[:50]}...")
-        logger.info(f"[Graph] Max iterations: {self.max_iterations}")
+        logger.info(f"[Graph] Max iterations: {effective_options.max_iterations}")
         
         try:
-            result = await compiled.ainvoke(
-                initial_state,
-                config={"configurable": {"thread_id": session_id}}
+            result = await asyncio.wait_for(
+                compiled.ainvoke(
+                    initial_state,
+                    config={"configurable": {"thread_id": session_id}},
+                ),
+                timeout=timeout,
             )
             
             final_report = result.get("final_report", {})
@@ -599,6 +656,11 @@ class ResearchGraph:
             
             return result
             
+        except asyncio.TimeoutError:
+            logger.error("[Graph] Research timed out after %.1f seconds", timeout)
+            initial_state["status"] = "error"
+            initial_state["error"] = f"Research timed out after {timeout:.1f}s"
+            return initial_state
         except Exception as e:
             logger.error(f"[Graph] Research failed: {e}")
             initial_state["status"] = "error"
@@ -606,29 +668,19 @@ class ResearchGraph:
             return initial_state
 
 
-# Singleton instance
-_graph_instance: ResearchGraph | None = None
-
-
 def get_research_graph(max_iterations: int = 3, event_emitter=None) -> ResearchGraph:
     """
-    Get the singleton ResearchGraph instance.
+    Create a graph instance for one runtime execution context.
     
     Args:
         max_iterations: Maximum research iterations (default: 3)
         event_emitter: Optional async callback to emit events during execution
     
     Returns:
-        ResearchGraph: Singleton graph instance
+        ResearchGraph: Configured graph instance
     
     Example:
-        >>> graph = get_research_graph()
+        >>> graph = get_research_graph(max_iterations=4)
         >>> result = await graph.run("AI in healthcare", "session-001")
     """
-    global _graph_instance
-    if _graph_instance is None:
-        _graph_instance = ResearchGraph(max_iterations=max_iterations, event_emitter=event_emitter)
-    elif event_emitter:
-        # Update event emitter if provided
-        _graph_instance.event_emitter = event_emitter
-    return _graph_instance
+    return ResearchGraph(max_iterations=max_iterations, event_emitter=event_emitter)

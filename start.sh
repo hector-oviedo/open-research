@@ -25,7 +25,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-MODEL_NAME="gpt-oss-20b"
+MODEL_NAME="gpt-oss:20b"
 COMPOSE_FILE="docker-compose.yml"
 
 # =============================================================================
@@ -105,7 +105,7 @@ cmd_up() {
     echo -e "${CYAN}Services:${NC}"
     echo -e "  Frontend: ${GREEN}http://localhost:5173${NC}"
     echo -e "  Backend API: ${GREEN}http://localhost:8000${NC}"
-    echo -e "  API Docs: ${GREEN}http://localhost:8000/docs${NC}"
+    echo -e "  API Docs: ${GREEN}http://localhost:8000/custom-docs${NC}"
     echo -e "  Ollama: ${GREEN}http://localhost:11434${NC}"
     echo ""
     echo -e "${CYAN}Commands:${NC}"
@@ -194,7 +194,6 @@ cmd_clean() {
     if [ "$confirm" = "yes" ]; then
         print_info "Cleaning up..."
         docker compose -f $COMPOSE_FILE down -v --remove-orphans
-        docker volume rm -f ollama_data backend_data 2>/dev/null || true
         print_success "Cleanup complete!"
     else
         print_info "Cleanup cancelled."

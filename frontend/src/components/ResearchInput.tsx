@@ -6,27 +6,45 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Sparkles, Play, Square } from 'lucide-react';
+import { Search, Play, Square } from 'lucide-react';
 import { useResearch } from '../hooks/useResearch';
 import { useAgentStream } from '../hooks/useAgentStream';
 import { useResearchStore } from '../stores/researchStore';
 
-export function ResearchInput() {
-  const [query, setQuery] = useState('');
+interface ResearchInputProps {
+  compact?: boolean;
+}
+
+export function ResearchInput({ compact = false }: ResearchInputProps) {
+  const [localQuery, setLocalQuery] = useState('');
   const { startResearch, isLoading } = useResearch();
   const { connect, disconnect } = useAgentStream();
-  const { status, sessionId } = useResearchStore();
+  const {
+    status,
+    sessionId,
+    researchOptions,
+    setQuery,
+    query,
+  } = useResearchStore();
   const isRunning = status === 'running';
+
+  useEffect(() => {
+    if (query && query !== localQuery) {
+      setLocalQuery(query);
+    }
+  }, [query, localQuery]);
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!query.trim() || isLoading || isRunning) return;
+    if (!localQuery.trim() || isLoading || isRunning) return;
 
-    const newSessionId = await startResearch(query);
+    setQuery(localQuery);
+
+    const newSessionId = await startResearch(localQuery, researchOptions);
     if (newSessionId) {
       connect(newSessionId);
     }
-  }, [query, isLoading, isRunning, startResearch, connect]);
+  }, [localQuery, isLoading, isRunning, setQuery, startResearch, researchOptions, connect]);
 
   const { stopResearch } = useResearch();
 
@@ -41,7 +59,7 @@ export function ResearchInput() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        if (!isRunning && query.trim()) {
+        if (!isRunning && localQuery.trim()) {
           handleSubmit();
         }
       }
@@ -49,66 +67,70 @@ export function ResearchInput() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleSubmit, isRunning, query]);
+  }, [handleSubmit, isRunning, localQuery]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-3xl mx-auto"
+      className="w-full"
     >
-      <div className="text-center mb-8">
-        <motion.div
-          initial={{ scale: 0.9 }}
-          animate={{ scale: 1 }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 mb-4"
-        >
-          <Sparkles className="w-4 h-4 text-blue-400" />
-          <span className="text-sm text-blue-300">AI-Powered Research</span>
-        </motion.div>
-        <h1 className="text-4xl md:text-5xl font-bold mb-4">
-          <span className="gradient-text">Deep Research</span> System
-        </h1>
-        <p className="text-slate-400 text-lg max-w-xl mx-auto">
-          Enter any topic and let our multi-agent system research it for you.
-          Planner → Finder → Summarizer → Reviewer → Writer.
-        </p>
-      </div>
+      {!compact && (
+        <div className="mb-6 text-center">
+          <p className="mx-auto max-w-3xl text-sm text-[hsl(var(--muted-foreground))] md:text-lg">
+            Enter any topic and let our multi-agent system research it for you.
+            Planner → Finder → Summarizer → Reviewer → Writer.
+          </p>
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit} className="relative">
-        <div className="relative flex items-center">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 z-10" />
-          
-          <input
-            type="text"
-            placeholder="What would you like to research?"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+      {sessionId && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-3 text-sm text-[hsl(var(--muted-foreground))]"
+        >
+          Session:
+          {' '}
+          <code className="inline-block break-all rounded bg-[hsl(var(--secondary))] px-3 py-1.5 text-sm">
+            {sessionId}
+          </code>
+        </motion.div>
+      )}
+
+      <form onSubmit={handleSubmit} className="w-full">
+        <div className="relative overflow-hidden rounded-[999px] border border-[hsl(var(--border))] bg-[hsl(var(--card)/0.82)]">
+          <Search className="absolute left-5 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+
+          <textarea
+            placeholder={compact ? 'What would you like to research next?' : 'What would you like to research?'}
+            value={localQuery}
+            onChange={(e) => setLocalQuery(e.target.value)}
             disabled={isRunning}
-            className="w-full pl-12 pr-14 py-4 bg-slate-800/50 border border-slate-700 rounded-xl
-                       text-white placeholder-slate-500 text-lg
-                       focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500
+            rows={compact ? 2 : 1}
+            className="w-full min-h-[56px] resize-none border-0 bg-transparent pl-14 pr-24 pb-4 pt-4 text-sm leading-6 md:text-base
+                       text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))]
+                       focus:outline-none
                        transition-all duration-200
                        disabled:opacity-70 disabled:cursor-not-allowed"
           />
-          
+
           {/* Action button inside input */}
-          <div className="absolute right-2 top-1/2 -translate-y-1/2">
+          <div className="absolute inset-y-1.5 right-1.5">
             {isRunning ? (
               <button
                 type="button"
                 onClick={handleStop}
-                className="p-2.5 rounded-lg bg-amber-500/20 text-amber-400 hover:bg-amber-500/30
-                           border border-amber-500/30 transition-colors"
+                className="h-full aspect-square rounded-full border border-amber-500/30 bg-amber-500/20 text-amber-400 transition-colors hover:bg-amber-500/30"
                 title="Stop research"
               >
-                <Square className="w-5 h-5 fill-current" />
+                <Square className="mx-auto h-5 w-5 fill-current" />
               </button>
             ) : (
               <button
                 type="submit"
-                disabled={!query.trim() || isLoading}
-                className="p-2.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600
+                disabled={!localQuery.trim() || isLoading}
+                className="h-full aspect-square rounded-full bg-blue-500 text-white hover:bg-blue-600
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-colors"
                 title="Start research"
@@ -118,26 +140,17 @@ export function ResearchInput() {
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                   >
-                    <Search className="w-5 h-5" />
+                    <Search className="mx-auto h-5 w-5" />
                   </motion.div>
                 ) : (
-                  <Play className="w-5 h-5 fill-current" />
+                  <Play className="mx-auto h-5 w-5 fill-current" />
                 )}
               </button>
             )}
           </div>
+
         </div>
       </form>
-
-      {sessionId && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="mt-4 text-center text-sm text-slate-500"
-        >
-          Session: <code className="bg-slate-800 px-2 py-1 rounded">{sessionId}</code>
-        </motion.div>
-      )}
     </motion.div>
   );
 }

@@ -30,6 +30,9 @@ RUN npm ci
 # Copy project files (except node_modules which is in .dockerignore)
 COPY . .
 
+# Build production assets
+RUN npm run build
+
 # Expose port
 EXPOSE 5173
 
@@ -37,5 +40,5 @@ EXPOSE 5173
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:5173 || exit 1
 
-# Default command (overridden in docker-compose for dev mode)
-CMD ["npm", "run", "dev"]
+# Serve production build
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "5173"]

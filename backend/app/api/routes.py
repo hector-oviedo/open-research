@@ -4,19 +4,32 @@ API Routes - FastAPI endpoints for the Deep Research System.
 This module contains all HTTP endpoints, separated from business logic.
 """
 
-from fastapi import APIRouter
-from fastapi.responses import FileResponse
+import json
+import uuid
 from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.config import settings
 from app.core.ollama_adapter import get_adapter
 from app.core.checkpointer import get_checkpointer
 from app.core.graph import get_research_graph
+from app.core.research_manager import get_research_manager
 from app.agents.planner import get_planner
 from app.agents.finder import get_finder
 from app.agents.summarizer import get_summarizer
 from app.agents.reviewer import get_reviewer
 from app.agents.writer import get_writer
+from app.models.research import (
+    DeleteSessionResponse,
+    ResearchOptions,
+    SessionSummary,
+    SessionsListResponse,
+    StartResearchRequest,
+    StartResearchResponse,
+    StopResearchResponse,
+)
 from app.models.state import ResearchState, create_initial_state, get_progress_percent
 
 # Create router for API endpoints
@@ -197,12 +210,13 @@ async def test_graph() -> dict:
         session_id = f"test-{uuid.uuid4().hex[:8]}"
         
         # Run with timeout
+        timeout_seconds = float(settings.MAX_RESEARCH_TIME_MINUTES) * 60.0
         result = await asyncio.wait_for(
             graph.run(
                 query="Recent AI developments in healthcare",
                 session_id=session_id,
             ),
-            timeout=600.0  # 10 minute timeout for full graph
+            timeout=timeout_seconds,
         )
         
         plan = result.get("plan", [])
@@ -521,14 +535,9 @@ async def test_writer() -> dict:
 # Streaming & Interruption Endpoints
 # =============================================================================
 
-from fastapi.responses import StreamingResponse
-from app.core.research_manager import get_research_manager
-import json
-import uuid
-
 
 @router.post("/api/research/start")
-async def start_research(request: dict) -> dict:
+async def start_research(request: StartResearchRequest) -> StartResearchResponse:
     """
     Start a new research session with streaming support.
     
@@ -543,32 +552,23 @@ async def start_research(request: dict) -> dict:
           -H "Content-Type: application/json" \
           -d '{"query": "AI in healthcare 2024"}'
     """
-    try:
-        query = request.get("query", "")
-        if not query:
-            return {"status": "error", "error": "Query is required"}
-        
-        # Generate session ID
-        session_id = f"research-{uuid.uuid4().hex[:12]}"
-        
-        # Start research
-        manager = get_research_manager()
-        await manager.start_research(query, session_id)
-        
-        return {
-            "status": "started",
-            "session_id": session_id,
-            "query": query,
-            "stream_url": f"/api/research/{session_id}/events",
-            "stop_url": f"/api/research/{session_id}/stop",
-        }
-    except Exception as e:
-        import traceback
-        return {
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-        }
+    query = request.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="Query is required")
+
+    session_id = f"research-{uuid.uuid4().hex[:12]}"
+    manager = get_research_manager()
+    await manager.start_research(query=query, session_id=session_id, options=request.options)
+
+    return StartResearchResponse(
+        status="started",
+        session_id=session_id,
+        query=query,
+        options=request.options,
+        stream_url=f"/api/research/{session_id}/events",
+        stop_url=f"/api/research/{session_id}/stop",
+        status_url=f"/api/research/{session_id}/status",
+    )
 
 
 @router.get("/api/research/{session_id}/events")
@@ -624,7 +624,7 @@ async def stream_research_events(session_id: str):
 
 
 @router.post("/api/research/{session_id}/stop")
-async def stop_research(session_id: str) -> dict:
+async def stop_research(session_id: str) -> StopResearchResponse:
     """
     Stop a running research session.
     
@@ -637,29 +637,19 @@ async def stop_research(session_id: str) -> dict:
     Example:
         curl -X POST http://localhost:8000/api/research/research-abc123/stop
     """
-    try:
-        manager = get_research_manager()
-        stopped = await manager.stop_research(session_id)
-        
-        if stopped:
-            return {
-                "status": "stopped",
-                "session_id": session_id,
-                "message": "Research session stopped successfully",
-            }
-        else:
-            return {
-                "status": "not_found_or_completed",
-                "session_id": session_id,
-                "message": "Session not found or already completed",
-            }
-    except Exception as e:
-        import traceback
-        return {
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-        }
+    manager = get_research_manager()
+    stopped = await manager.stop_research(session_id)
+    if stopped:
+        return StopResearchResponse(
+            status="stopped",
+            session_id=session_id,
+            message="Research session stopped successfully",
+        )
+    return StopResearchResponse(
+        status="not_found_or_completed",
+        session_id=session_id,
+        message="Session not found or already completed",
+    )
 
 
 @router.get("/api/research/{session_id}/status")
@@ -673,79 +663,88 @@ async def get_research_status(session_id: str) -> dict:
     Returns:
         dict: Session status and metadata
     """
-    try:
-        manager = get_research_manager()
-        session = manager.get_session(session_id)
-        
-        if not session:
-            return {
-                "status": "not_found",
-                "session_id": session_id,
-            }
-        
-        state = session.state
-        final_report = state.get("final_report", {})
-        
-        return {
-            "status": "running" if session.is_running() else "completed",
-            "session_id": session_id,
-            "query": state.get("query", ""),
-            "created_at": session.created_at,
-            "updated_at": session.updated_at,
-            "is_stopped": session.is_stopped(),
-            "progress": {
-                "iteration": state.get("iteration", 0),
-                "plan_count": len(state.get("plan", [])),
-                "sources_count": len(state.get("sources", [])),
-                "findings_count": len(state.get("findings", [])),
-            },
-            "result": {
-                "title": final_report.get("title") if final_report else None,
-                "word_count": final_report.get("word_count", 0) if final_report else 0,
-            } if final_report else None,
-        }
-    except Exception as e:
-        import traceback
-        return {
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-        }
+    manager = get_research_manager()
+    session = await manager.get_session(session_id)
+    if not session:
+        return {"status": "not_found", "session_id": session_id}
+
+    state = session.state
+    final_report = state.get("final_report", {})
+    resolved_status = "running" if session.is_running() else state.get("status", "completed")
+
+    return {
+        "status": resolved_status,
+        "session_id": session_id,
+        "query": state.get("query", ""),
+        "created_at": session.created_at,
+        "updated_at": session.updated_at,
+        "is_stopped": session.is_stopped(),
+        "options": session.options.model_dump(mode="json"),
+        "progress": {
+            "iteration": state.get("iteration", 0),
+            "plan_count": len(state.get("plan", [])),
+            "sources_count": len(state.get("sources", [])),
+            "findings_count": len(state.get("findings", [])),
+        },
+        "result": {
+            "title": final_report.get("title") if final_report else None,
+            "word_count": final_report.get("word_count", 0) if final_report else 0,
+        } if final_report else None,
+    }
 
 
 @router.get("/api/research/sessions")
-async def list_research_sessions() -> dict:
+async def list_research_sessions() -> SessionsListResponse:
     """
     List all research sessions.
     
     Returns:
         dict: List of sessions
     """
-    try:
-        manager = get_research_manager()
-        sessions = manager.get_all_sessions()
-        
-        return {
-            "status": "success",
-            "count": len(sessions),
-            "sessions": [
-                {
-                    "session_id": s.session_id,
-                    "query": s.state.get("query", "")[:50] + "...",
-                    "status": "running" if s.is_running() else "completed",
-                    "created_at": s.created_at,
-                    "has_report": s.state.get("final_report") is not None,
-                }
-                for s in sessions[:10]  # Limit to 10 most recent
-            ],
-        }
-    except Exception as e:
-        import traceback
-        return {
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-        }
+    manager = get_research_manager()
+    sessions = await manager.get_all_sessions()
+    session_summaries: list[SessionSummary] = []
+    for session in sessions[:30]:
+        query = session.state.get("query", "")
+        raw_status = "running" if session.is_running() else session.state.get("status", "completed")
+        resolved_status = raw_status if raw_status in {"running", "completed", "stopped", "error"} else "completed"
+        session_summaries.append(
+            SessionSummary(
+                session_id=session.session_id,
+                query=query,
+                status=resolved_status,
+                created_at=session.created_at,
+                updated_at=session.updated_at,
+                has_report=session.state.get("final_report") is not None,
+                options=session.options,
+            )
+        )
+    return SessionsListResponse(status="success", count=len(session_summaries), sessions=session_summaries)
+
+
+@router.delete("/api/research/sessions/{session_id}")
+async def delete_research_session(session_id: str) -> DeleteSessionResponse:
+    """Delete one non-running session and all persisted artifacts."""
+
+    manager = get_research_manager()
+    result = await manager.delete_session(session_id)
+    if result == "running":
+        return DeleteSessionResponse(
+            status="running",
+            session_id=session_id,
+            message="Cannot delete a running session. Stop it first.",
+        )
+    if result == "not_found":
+        return DeleteSessionResponse(
+            status="not_found",
+            session_id=session_id,
+            message=f"Session {session_id} was not found.",
+        )
+    return DeleteSessionResponse(
+        status="deleted",
+        session_id=session_id,
+        message="Session deleted successfully.",
+    )
 
 
 @router.get("/api/research/sessions/{session_id}/report")
@@ -759,36 +758,49 @@ async def get_session_report(session_id: str) -> dict:
     Returns:
         dict: Session report
     """
-    try:
-        manager = get_research_manager()
-        session = manager.get_session(session_id)
-        
-        if not session:
-            return {
-                "status": "error",
-                "error": f"Session {session_id} not found",
-            }
-        
-        final_report = session.state.get("final_report")
-        if not final_report:
-            return {
-                "status": "error",
-                "error": "Report not yet available",
-            }
-        
-        return {
-            "status": "success",
-            "session_id": session_id,
-            "query": session.state.get("query", ""),
-            "report": final_report,
-        }
-    except Exception as e:
-        import traceback
-        return {
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-        }
+    manager = get_research_manager()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    final_report = session.state.get("final_report")
+    if not final_report:
+        raise HTTPException(status_code=404, detail="Report not yet available")
+
+    return {
+        "status": "success",
+        "session_id": session_id,
+        "query": session.state.get("query", ""),
+        "report": final_report,
+    }
+
+
+@router.get("/api/research/sessions/{session_id}/documents")
+async def list_session_documents(session_id: str) -> dict:
+    """List persisted documents for a completed session."""
+
+    manager = get_research_manager()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    documents = await manager.list_documents(session_id)
+    return {
+        "status": "success",
+        "session_id": session_id,
+        "documents": documents,
+    }
+
+
+@router.get("/api/research/sessions/{session_id}/documents/{document_id}")
+async def get_session_document(session_id: str, document_id: str) -> dict:
+    """Fetch a persisted document payload by id."""
+
+    manager = get_research_manager()
+    document = await manager.get_document_content(session_id=session_id, document_id=document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"status": "success", "document": document}
 
 
 @router.post("/api/test/streaming")
@@ -803,7 +815,7 @@ async def test_streaming() -> dict:
         session_id = f"test-stream-{uuid.uuid4().hex[:8]}"
         
         # Start a test research (will use actual graph)
-        await manager.start_research("Test query for streaming", session_id)
+        await manager.start_research("Test query for streaming", session_id, ResearchOptions())
         
         return {
             "status": "started",

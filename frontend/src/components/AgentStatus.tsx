@@ -15,55 +15,67 @@ const agentIcons = {
   Writer: PenTool,
 };
 
-export function AgentStatus() {
+interface AgentStatusProps {
+  showTitle?: boolean;
+}
+
+export function AgentStatus({ showTitle = true }: AgentStatusProps) {
   const { agentStatus } = useResearchStore();
 
   return (
     <div className="w-full">
-      <h3 className="text-sm font-medium text-slate-400 mb-4 uppercase tracking-wider">
-        Agent Pipeline
-      </h3>
-      <div className="flex flex-col gap-3">
+      {showTitle && (
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] sm:mb-4 sm:text-sm">
+          Agent Pipeline
+        </h3>
+      )}
+      <div className="flex flex-col gap-2 sm:gap-3">
         {agentStatus.map((agent, index) => {
           const Icon = agentIcons[agent.name as keyof typeof agentIcons];
           const isActive = agent.status === 'running';
           const isCompleted = agent.status === 'completed';
+          const cardStyle = {
+            borderColor: isActive || isCompleted ? `${agent.color}75` : 'hsl(var(--border) / 0.6)',
+            boxShadow: isActive ? `0 0 0 1px ${agent.color}55, 0 8px 24px ${agent.color}22` : undefined,
+          };
           
           return (
             <motion.div
               key={agent.name}
               initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+              animate={{ opacity: 1, x: 0, scale: isActive ? 1.01 : 1 }}
               transition={{ delay: index * 0.1 }}
               className={`
-                relative flex items-center gap-4 p-4 rounded-t-xl rounded-b-none
+                relative flex items-center justify-center gap-2 overflow-hidden rounded-xl border-b-0 p-2 lg:justify-start lg:gap-4 lg:p-4
                 border transition-all duration-300
                 ${isActive 
-                  ? 'bg-slate-800/80 border-slate-600' 
+                  ? 'bg-[hsl(var(--card)/0.98)]' 
                   : isCompleted
-                    ? 'bg-slate-800/40 border-slate-700/50'
-                    : 'bg-slate-800/20 border-slate-800'
+                    ? 'bg-[hsl(var(--card)/0.82)]'
+                    : 'bg-[hsl(var(--card)/0.42)]'
                 }
               `}
+              style={cardStyle}
+              title={agent.name}
             >
               {/* Status indicator */}
               <div className="relative">
-                <div
-                  className={`
-                    w-10 h-10 rounded-xl flex items-center justify-center
+                  <div
+                    className={`
+                    h-8 w-8 rounded-lg flex items-center justify-center lg:h-10 lg:w-10 lg:rounded-xl
                     transition-all duration-300
                     ${isActive ? 'animate-pulse' : ''}
                   `}
                   style={{ 
                     backgroundColor: isActive || isCompleted 
                       ? `${agent.color}20` 
-                      : 'rgba(30, 41, 59, 0.5)',
+                      : 'hsl(var(--secondary))',
                     border: `1px solid ${isActive || isCompleted ? agent.color : 'transparent'}`,
                   }}
                 >
                   <Icon 
-                    className="w-5 h-5 transition-colors duration-300"
-                    style={{ color: isActive || isCompleted ? agent.color : '#64748b' }}
+                    className="h-4 w-4 transition-colors duration-300 sm:h-5 sm:w-5"
+                    style={{ color: isActive || isCompleted ? agent.color : 'hsl(var(--muted-foreground))' }}
                   />
                 </div>
                 
@@ -75,43 +87,43 @@ export function AgentStatus() {
                       transition-colors duration-500
                     `}
                     style={{ 
-                      backgroundColor: isCompleted ? agent.color : '#1e293b'
+                      backgroundColor: isCompleted ? agent.color : 'hsl(var(--border))'
                     }}
                   />
                 )}
               </div>
 
               {/* Agent info */}
-              <div className="flex-1">
+              <div className="hidden flex-1 lg:block">
                 <div className="flex items-center gap-2">
                   <span className={`
-                    font-medium transition-colors duration-300
-                    ${isActive || isCompleted ? 'text-white' : 'text-slate-400'}
+                    text-xs font-medium transition-colors duration-300 lg:text-base
+                    ${isActive || isCompleted ? 'text-[hsl(var(--foreground))]' : 'text-[hsl(var(--muted-foreground))]'}
                   `}>
                     {agent.name}
                   </span>
                   {isActive && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 animate-pulse">
+                    <span className="rounded-full px-2 py-0.5 text-xs text-blue-700 dark:text-blue-300 animate-pulse" style={{ backgroundColor: `${agent.color}22` }}>
                       Running
                     </span>
                   )}
                   {isCompleted && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                    <span className="rounded-full px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-300" style={{ backgroundColor: `${agent.color}20` }}>
                       Done
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-slate-500">{agent.description}</p>
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))] lg:text-sm">{agent.description}</p>
               </div>
 
               {/* Processing loop animation for active agent */}
               {isActive && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-700 overflow-hidden">
+                <div className="absolute bottom-0 left-0 right-0 h-1 overflow-hidden bg-[hsl(var(--border))]">
                   <motion.div
                     className="h-full"
                     style={{ backgroundColor: agent.color }}
-                    initial={{ x: '-100%' }}
-                    animate={{ x: '100%' }}
+                    initial={{ x: '-100%', opacity: 0.7 }}
+                    animate={{ x: '100%', opacity: 1 }}
                     transition={{ 
                       duration: 1.5, 
                       ease: 'easeInOut',
@@ -120,6 +132,12 @@ export function AgentStatus() {
                     }}
                   />
                 </div>
+              )}
+              {isCompleted && (
+                <div
+                  className="absolute bottom-0 left-0 right-0 h-1"
+                  style={{ backgroundColor: `${agent.color}66` }}
+                />
               )}
             </motion.div>
           );

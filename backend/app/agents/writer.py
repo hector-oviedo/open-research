@@ -1,8 +1,10 @@
 """
 Writer Agent - Synthesizes research findings into formatted reports with citations.
 """
+import json
 import logging
-from typing import Any, List, Optional
+import re
+from typing import Any
 
 from app.core.ollama_adapter import get_adapter
 from app.agents.prompts import load_prompt
@@ -27,6 +29,7 @@ class WriterAgent:
         state: ResearchState,
         report_format: str = "markdown",
         max_length: int = 2000,
+        report_length: str = "medium",
     ) -> dict[str, Any]:
         """
         Synthesize findings into a formatted research report.
@@ -53,7 +56,14 @@ class WriterAgent:
             return self._create_error_report("No research findings available to synthesize.")
 
         # Build context for LLM
-        context = self._build_context(query, plan, findings, gaps)
+        context = self._build_context(
+            query=query,
+            plan=plan,
+            findings=findings,
+            gaps=gaps,
+            report_length=report_length,
+            max_length=max_length,
+        )
 
         try:
             # Generate report using LLM
@@ -66,10 +76,21 @@ class WriterAgent:
                 messages=messages,
                 enable_thinking=False,  # No need for thinking in report generation
                 stream=False,
+                response_format="json",
             )
 
-            content = response.get("message", {}).get("content", "")
+            content = str(response.get("message", {}).get("content", "")).strip()
             report = self._parse_report_response(content, findings)
+
+            if report is None:
+                logger.info("[Writer] Initial output was not valid JSON, requesting repair pass")
+                repaired_content = await self._repair_report_output(content)
+                report = self._parse_report_response(repaired_content, findings)
+
+            if report is None:
+                logger.warning("[Writer] JSON repair failed, falling back to markdown structure")
+                report = self._fallback_report_from_raw(content, findings)
+
             logger.info(f"Report generated: {report.get('title', 'Untitled')}")
             logger.info(f"Word count: {report.get('word_count', 0)}")
 
@@ -82,17 +103,28 @@ class WriterAgent:
     def _build_context(
         self,
         query: str,
-        plan: List[str],
-        findings: List[dict],
+        plan: list[dict | str],
+        findings: list[dict],
         gaps: dict,
+        report_length: str,
+        max_length: int,
     ) -> str:
         """Build structured context for the writer LLM."""
         context_parts = []
+        target_words = self._target_word_count(report_length, max_length)
         
-        logger.info(f"[Writer] Building context with {len(findings)} findings, query: '{query[:50]}...'")
+        logger.info(
+            "[Writer] Building context with %s findings, target_words=%s",
+            len(findings),
+            target_words,
+        )
 
         # Original query
         context_parts.append(f"# Original Research Query\n{query}\n")
+        context_parts.append("## Runtime Constraints")
+        context_parts.append(f"- Target report length: {report_length}")
+        context_parts.append(f"- Approximate max words: {target_words}")
+        context_parts.append("")
 
         # Research plan
         context_parts.append("## Research Plan (Sub-Questions)")
@@ -112,7 +144,11 @@ class WriterAgent:
         context_parts.append("")
         context_parts.append("**Available Sources:**")
         for i, finding in enumerate(findings, 1):
+            if not isinstance(finding, dict):
+                continue
             source_info = finding.get("source_info", {})
+            if not isinstance(source_info, dict):
+                source_info = {}
             url = source_info.get('url', 'Unknown')
             title = source_info.get('title', 'Unknown')
             context_parts.append(f"  Source {i}: [{title}]({url})")
@@ -121,7 +157,11 @@ class WriterAgent:
         context_parts.append("")
         
         for i, finding in enumerate(findings, 1):
+            if not isinstance(finding, dict):
+                continue
             source_info = finding.get("source_info", {})
+            if not isinstance(source_info, dict):
+                source_info = {}
             url = source_info.get('url', 'Unknown')
             title = source_info.get('title', 'Unknown')
             
@@ -146,13 +186,15 @@ class WriterAgent:
 
             # Metadata
             metadata = finding.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
             relevance = metadata.get("relevance_score", 0)
             confidence = metadata.get("confidence", 0)
             context_parts.append(f"\n*Relevance: {relevance:.2f}, Confidence: {confidence:.2f}*")
             context_parts.append("")
 
         # Gap analysis (if available)
-        if gaps:
+        if isinstance(gaps, dict) and gaps:
             context_parts.append("## Gap Analysis")
             severity = gaps.get("overall_severity", "unknown")
             confidence = gaps.get("confidence", 0)
@@ -160,14 +202,16 @@ class WriterAgent:
             context_parts.append(f"**Confidence**: {confidence:.2f}")
 
             gap_list = gaps.get("gaps", [])
-            if gap_list:
+            if isinstance(gap_list, list) and gap_list:
                 context_parts.append(f"\n**Identified Gaps ({len(gap_list)})**:")
                 for gap in gap_list:
+                    if not isinstance(gap, dict):
+                        continue
                     context_parts.append(f"\n- **{gap.get('type', 'Unknown')}** ({gap.get('severity', 'unknown')})")
                     context_parts.append(f"  Description: {gap.get('description', '')}")
 
             recommendations = gaps.get("recommendations", [])
-            if recommendations:
+            if isinstance(recommendations, list) and recommendations:
                 context_parts.append(f"\n**Recommendations**:")
                 for rec in recommendations:
                     context_parts.append(f"- {rec}")
@@ -177,52 +221,28 @@ class WriterAgent:
     def _parse_report_response(
         self,
         content: str,
-        findings: List[dict],
-    ) -> dict[str, Any]:
-        """Parse and validate the LLM report response."""
-        import json
-
+        findings: list[dict],
+    ) -> dict[str, Any] | None:
+        """Parse and validate a JSON report response."""
         content = content.strip()
         logger.info(f"[Writer] Raw response length: {len(content)} chars")
-        
+
         if not content:
-            logger.error("[Writer] Empty response from LLM")
-            return self._create_error_report("LLM returned empty response")
+            return None
 
-        # Handle potential markdown code blocks
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-
-        try:
-            report = json.loads(content)
-            logger.info(f"[Writer] Parsed JSON report with keys: {list(report.keys())}")
-        except json.JSONDecodeError as e:
-            # Fallback: treat as raw markdown report
-            logger.warning(f"[Writer] Failed to parse JSON report: {e}")
-            logger.info(f"[Writer] Using fallback with raw content ({len(content)} chars)")
-            report = {
-                "title": "Research Report",
-                "executive_summary": content[:500] if len(content) > 500 else content,
-                "sections": [{"heading": "Findings", "content": content}],
-                "sources_used": [],
-                "confidence_assessment": "Unable to assess confidence due to parsing error",
-                "word_count": len(content.split()),
-            }
+        report = self._parse_json_payload(content)
+        if report is None:
+            return None
 
         # Ensure required fields exist
         if not report.get("title"):
             report["title"] = "Research Report"
         if not report.get("executive_summary"):
             report["executive_summary"] = "No executive summary generated."
-        if not report.get("sections"):
-            report["sections"] = []
+        report["sections"] = self._normalize_sections(report.get("sections"))
         if not report.get("confidence_assessment"):
             report["confidence_assessment"] = "Confidence not assessed."
+        report["sources_used"] = self._normalize_sources(report.get("sources_used"))
 
         # Ensure sources_used is populated if empty
         if not report.get("sources_used"):
@@ -236,22 +256,116 @@ class WriterAgent:
         if not report.get("word_count"):
             total_text = report.get("executive_summary", "")
             for section in report.get("sections", []):
+                if not isinstance(section, dict):
+                    continue
                 total_text += section.get("content", "")
             report["word_count"] = len(total_text.split())
             logger.info(f"[Writer] Calculated word count: {report['word_count']}")
 
         return report
 
+    async def _repair_report_output(self, content: str) -> str:
+        """
+        Request a strict JSON rewrite when model output is malformed.
+        """
+        if not content:
+            return ""
+
+        repair_system = (
+            "Return valid JSON only. No markdown fences, no commentary. "
+            "Match the target schema exactly."
+        )
+        repair_user = (
+            "Rewrite the following report text into strict JSON with fields: "
+            "title, executive_summary, sections[{heading,content}], "
+            "sources_used[{url,title,reliability}], confidence_assessment, word_count.\n\n"
+            "INPUT:\n"
+            f"{content[:12000]}"
+        )
+        try:
+            response = await self.adapter.chat_completion(
+                messages=[
+                    {"role": "system", "content": repair_system},
+                    {"role": "user", "content": repair_user},
+                ],
+                enable_thinking=False,
+                stream=False,
+                response_format="json",
+            )
+            return str(response.get("message", {}).get("content", "")).strip()
+        except Exception as exc:
+            logger.warning("[Writer] Repair pass failed: %s", exc)
+            return ""
+
+    def _parse_json_payload(self, content: str) -> dict[str, Any] | None:
+        """
+        Parse JSON object from model output with robust extraction.
+        """
+        candidate = self._extract_json_candidate(content)
+        if not candidate:
+            return None
+
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            repaired = re.sub(r",(\s*[}\]])", r"\1", candidate)
+            try:
+                parsed = json.loads(repaired)
+            except json.JSONDecodeError:
+                return None
+
+        if not isinstance(parsed, dict):
+            return None
+        logger.info("[Writer] Parsed JSON report with keys: %s", list(parsed.keys()))
+        return parsed
+
+    def _extract_json_candidate(self, content: str) -> str:
+        """Extract most likely JSON object from mixed model output."""
+        fence_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", content, re.DOTALL | re.IGNORECASE)
+        if fence_match:
+            return fence_match.group(1).strip()
+
+        stripped = content.strip()
+        if stripped.startswith("{") and stripped.endswith("}"):
+            return stripped
+
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start == -1 or end == -1 or start >= end:
+            return ""
+        return stripped[start:end + 1].strip()
+
+    def _fallback_report_from_raw(
+        self,
+        content: str,
+        findings: list[dict],
+    ) -> dict[str, Any]:
+        """Create a usable report structure from raw freeform text."""
+        report = {
+            "title": "Research Report",
+            "executive_summary": content[:500] if len(content) > 500 else content,
+            "sections": [{"heading": "Findings", "content": content}],
+            "sources_used": [],
+            "confidence_assessment": "Confidence reduced because model returned malformed structured output.",
+            "word_count": len(content.split()),
+        }
+        report["sources_used"] = self._extract_sources_from_findings(findings)
+        return report
+
     def _extract_sources_from_findings(
         self,
-        findings: List[dict],
-    ) -> List[dict]:
+        findings: list[dict],
+    ) -> list[dict]:
         """Extract unique sources from findings with complete metadata."""
         sources = []
         seen_urls = set()
 
         for i, finding in enumerate(findings, 1):
+            if not isinstance(finding, dict):
+                continue
             source_info = finding.get("source_info", {})
+            if not isinstance(source_info, dict):
+                source_info = {}
             url = source_info.get("url", "")
 
             if url and url not in seen_urls:
@@ -262,6 +376,8 @@ class WriterAgent:
                 
                 # Get confidence from metadata
                 metadata = finding.get("metadata", {})
+                if not isinstance(metadata, dict):
+                    metadata = {}
                 confidence = metadata.get("confidence", 0.8)
                 
                 sources.append({
@@ -291,7 +407,7 @@ class WriterAgent:
     def _validate_citations(
         self,
         report: dict[str, Any],
-        findings: List[dict],
+        findings: list[dict],
     ) -> dict[str, Any]:
         """
         Validate citations in report content and ensure sources_used is populated.
@@ -307,7 +423,11 @@ class WriterAgent:
         # Extract valid URLs from findings
         valid_urls = set()
         for finding in findings:
+            if not isinstance(finding, dict):
+                continue
             source_info = finding.get("source_info", {})
+            if not isinstance(source_info, dict):
+                source_info = {}
             url = source_info.get("url", "")
             if url:
                 valid_urls.add(url)
@@ -337,7 +457,11 @@ class WriterAgent:
                 if 1 <= citation_num <= len(findings):
                     # Try to get URL and title from findings
                     finding = findings[citation_num - 1]
+                    if not isinstance(finding, dict):
+                        return ""
                     source_info = finding.get("source_info", {})
+                    if not isinstance(source_info, dict):
+                        source_info = {}
                     url = source_info.get("url", "")
                     title = source_info.get("title", f"Source {citation_num}")
                     if url:
@@ -358,6 +482,8 @@ class WriterAgent:
         
         # Fix citations in sections
         for section in report.get("sections", []):
+            if not isinstance(section, dict):
+                continue
             if section.get("content"):
                 text = section["content"]
                 text = convert_old_citations(text)
@@ -384,9 +510,53 @@ class WriterAgent:
             "error": error_message,
         }
 
+    def _target_word_count(self, report_length: str, max_length: int) -> int:
+        """Translate report length preset to target words with hard upper bound."""
+        presets = {
+            "short": 900,
+            "medium": 1500,
+            "long": 2300,
+        }
+        return min(presets.get(report_length, 1500), max_length)
+
+    def _normalize_sections(self, sections: Any) -> list[dict[str, str]]:
+        """Normalize report sections into a safe list of heading/content dictionaries."""
+        if not isinstance(sections, list):
+            return []
+        normalized: list[dict[str, str]] = []
+        for section in sections:
+            if not isinstance(section, dict):
+                continue
+            normalized.append(
+                {
+                    "heading": str(section.get("heading", "Untitled Section")),
+                    "content": str(section.get("content", "")),
+                }
+            )
+        return normalized
+
+    def _normalize_sources(self, sources: Any) -> list[dict[str, Any]]:
+        """Normalize sources list and drop malformed entries."""
+        if not isinstance(sources, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            normalized.append(
+                {
+                    "url": str(source.get("url", "")),
+                    "title": str(source.get("title", "Untitled Source")),
+                    "reliability": str(source.get("reliability", "unknown")),
+                    "domain": str(source.get("domain", "")),
+                    "confidence": source.get("confidence", 0.0),
+                }
+            )
+        return normalized
+
 
 # Singleton instance
-_writer_instance: Optional[WriterAgent] = None
+_writer_instance: WriterAgent | None = None
 
 
 def get_writer() -> WriterAgent:

@@ -5,6 +5,7 @@
  */
 import { useCallback, useState } from 'react';
 import { useResearchStore } from '../stores/researchStore';
+import type { ResearchOptions } from '../types';
 
 interface StartResearchResponse {
   status: string;
@@ -14,7 +15,7 @@ interface StartResearchResponse {
 
 interface UseResearchReturn {
   isLoading: boolean;
-  startResearch: (query: string) => Promise<string | null>;
+  startResearch: (query: string, options: ResearchOptions) => Promise<string | null>;
   stopResearch: (sessionId: string) => Promise<boolean>;
   fetchStatus: (sessionId: string) => Promise<unknown>;
 }
@@ -23,14 +24,17 @@ export function useResearch(): UseResearchReturn {
   const [isLoading, setIsLoading] = useState(false);
   const { startResearch: startStore, setError } = useResearchStore();
 
-  const startResearch = useCallback(async (query: string): Promise<string | null> => {
+  const startResearch = useCallback(async (
+    query: string,
+    options: ResearchOptions,
+  ): Promise<string | null> => {
     setIsLoading(true);
     
     try {
       const response = await fetch('/api/research/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, options }),
       });
       
       if (!response.ok) {

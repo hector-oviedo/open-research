@@ -33,14 +33,11 @@ ENV PATH="/opt/venv/bin:${PATH}"
 # Set work directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml ./
-
-# Install dependencies using uv into the virtual environment
-RUN uv pip install --system -e . || pip install -e .
-
 # Copy project files
 COPY . .
+
+# Install dependencies using uv into the virtual environment
+RUN uv pip install -e .
 
 # Create data directory for SQLite
 RUN mkdir -p /app/data

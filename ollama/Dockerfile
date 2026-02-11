@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Default model to auto-download (can be overridden)
 ENV OLLAMA_MODEL=gpt-oss:20b \
     OLLAMA_HOST=0.0.0.0:11434 \
+    OLLAMA_CONTEXT_LENGTH=8192 \
+    OLLAMA_FLASH_ATTENTION=1 \
+    OLLAMA_KV_CACHE_TYPE=q8_0 \
+    OLLAMA_KEEP_ALIVE=5m \
     OLLAMA_NUM_PARALLEL=1 \
     OLLAMA_MAX_LOADED_MODELS=1 \
     HSA_OVERRIDE_GFX_VERSION=11.5.1 \

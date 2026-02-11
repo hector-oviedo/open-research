@@ -15,7 +15,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">
+          <label className="mb-1.5 block text-sm font-medium text-[hsl(var(--foreground))]">
             {label}
           </label>
         )}
@@ -23,8 +23,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           className={`
             w-full px-4 py-2.5
-            bg-slate-800/50 border border-slate-700 rounded-lg
-            text-white placeholder-slate-500
+            bg-[hsl(var(--card)/0.78)] border border-[hsl(var(--border))] rounded-lg
+            text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))]
             focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500
             transition-all duration-200
             disabled:opacity-50 disabled:cursor-not-allowed
@@ -34,7 +34,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           {...props}
         />
         {error && (
-          <p className="mt-1 text-sm text-red-400">{error}</p>
+          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
         )}
       </div>
     );

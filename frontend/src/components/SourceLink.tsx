@@ -4,6 +4,7 @@
  * Displays a clickable source link with icon, title, and domain.
  * Used throughout the UI wherever sources need to be displayed.
  */
+import { useState } from 'react';
 import { ExternalLink, Globe, FileText } from 'lucide-react';
 
 interface SourceLinkProps {
@@ -39,6 +40,7 @@ export function SourceLink({
   size = 'md',
   variant = 'default',
 }: SourceLinkProps) {
+  const [faviconFailed, setFaviconFailed] = useState(false);
   const displayDomain = domain || getDomainFromUrl(url);
   const displayTitle = title || displayDomain;
   
@@ -60,7 +62,7 @@ export function SourceLink({
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 
+        className="inline-flex items-center gap-1 text-[hsl(var(--primary))] hover:text-[hsl(var(--accent))]
                    hover:underline transition-colors"
         title={url}
       >
@@ -76,39 +78,40 @@ export function SourceLink({
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2 p-2 rounded-lg bg-slate-800/50 
-                   border border-slate-700/50 hover:bg-slate-700/50 
-                   hover:border-slate-600 transition-all group"
+        className="group flex items-center gap-2 rounded-lg border border-[hsl(var(--border)/0.7)] bg-[hsl(var(--secondary)/0.65)] p-2 transition-all hover:border-[hsl(var(--border))] hover:bg-[hsl(var(--secondary)/0.9)]"
         title={url}
       >
         {showIcon && (
-          <div className="w-6 h-6 rounded bg-slate-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
-            <img
-              src={getFaviconUrl(url)}
-              alt=""
-              className="w-4 h-4"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-                (e.target as HTMLImageElement).parentElement!.innerHTML = '<svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>';
-              }}
-            />
+          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-[hsl(var(--input))]">
+            {!faviconFailed ? (
+              <img
+                src={getFaviconUrl(url)}
+                alt=""
+                className="h-4 w-4"
+                onError={() => setFaviconFailed(true)}
+              />
+            ) : (
+              <Globe className="h-3 w-3 text-[hsl(var(--muted-foreground))]" />
+            )}
           </div>
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1">
-            <FileText className="w-3 h-3 text-slate-400 flex-shrink-0" />
-            <span className="text-sm text-slate-200 truncate group-hover:text-blue-400 transition-colors">
+            <FileText className="h-3 w-3 flex-shrink-0 text-[hsl(var(--muted-foreground))]" />
+            <span className="truncate text-sm text-[hsl(var(--foreground))] transition-colors group-hover:text-[hsl(var(--primary))]">
               {displayTitle}
             </span>
           </div>
           {showDomain && (
             <div className="flex items-center gap-1 mt-0.5">
-              <Globe className="w-3 h-3 text-slate-500 flex-shrink-0" />
-              <span className="text-xs text-slate-500 truncate">{displayDomain}</span>
+              <Globe className="h-3 w-3 flex-shrink-0 text-[hsl(var(--muted-foreground))]" />
+              <span className="truncate text-xs text-[hsl(var(--muted-foreground))]">{displayDomain}</span>
             </div>
           )}
         </div>
-        <ExternalLink className={`${iconSizes[size]} text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0`} />
+        <ExternalLink
+          className={`${iconSizes[size]} flex-shrink-0 text-[hsl(var(--muted-foreground))] opacity-0 transition-opacity group-hover:opacity-100`}
+        />
       </a>
     );
   }
@@ -119,20 +122,20 @@ export function SourceLink({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex items-center ${sizeClasses[size]} text-blue-400 
-                 hover:text-blue-300 transition-colors group`}
+      className={`inline-flex items-center ${sizeClasses[size]} group text-[hsl(var(--primary))] transition-colors hover:text-[hsl(var(--accent))]`}
       title={url}
     >
       {showIcon && (
-        <img
-          src={getFaviconUrl(url)}
-          alt=""
-          className="w-4 h-4 rounded"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = '';
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
+        !faviconFailed ? (
+          <img
+            src={getFaviconUrl(url)}
+            alt=""
+            className="h-4 w-4 rounded"
+            onError={() => setFaviconFailed(true)}
+          />
+        ) : (
+          <Globe className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+        )
       )}
       <span className="truncate max-w-[250px]">{displayTitle}</span>
       <ExternalLink className={`${iconSizes[size]} opacity-0 group-hover:opacity-100 transition-opacity`} />
@@ -165,7 +168,7 @@ export function SourceLinkList({ urls, maxVisible = 3 }: SourceLinkListProps) {
         />
       ))}
       {remainingCount > 0 && (
-        <span className="text-xs text-slate-500 self-center">
+        <span className="self-center text-xs text-[hsl(var(--muted-foreground))]">
           +{remainingCount} more
         </span>
       )}

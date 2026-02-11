@@ -13,6 +13,7 @@ from typing import Any
 
 from app.core.ollama_adapter import get_adapter
 from app.models.state import PlannerOutput, SubQuestion
+from app.models.research import ResearchOptions
 from app.agents.prompts import PLANNER_PROMPT
 
 
@@ -39,7 +40,12 @@ class PlannerAgent:
         self.adapter = get_adapter()
         self.system_prompt = PLANNER_PROMPT
     
-    async def plan(self, query: str) -> PlannerOutput:
+    async def plan(
+        self,
+        query: str,
+        session_memory: list[dict] | None = None,
+        options: ResearchOptions | None = None,
+    ) -> PlannerOutput:
         """
         Decompose a user query into a structured research plan.
         
@@ -59,8 +65,21 @@ class PlannerAgent:
             >>> len(result["plan"])
             5
         """
-        # Build the user message with the query
-        user_message = f"Research Query: {query}\n\nGenerate a research plan with sub-questions."
+        memory_context = self._build_memory_context(session_memory or [])
+        active_options = options or ResearchOptions()
+
+        # Build the user message with runtime controls and optional memory context
+        user_message = (
+            f"Research Query: {query}\n\n"
+            "Runtime constraints:\n"
+            f"- max_iterations: {active_options.max_iterations}\n"
+            f"- max_sources_total: {active_options.max_sources}\n"
+            f"- source_diversity: {active_options.source_diversity}\n"
+            f"- report_length_target: {active_options.report_length}\n"
+            "\n"
+            f"{memory_context}\n"
+            "Generate a research plan with sub-questions."
+        )
         
         # Call LLM with thinking enabled for better reasoning
         response = await self.adapter.chat_completion(
@@ -83,10 +102,12 @@ class PlannerAgent:
         # Convert to SubQuestion objects
         sub_questions: list[SubQuestion] = []
         for sq_data in plan_data.get("sub_questions", []):
+            if not isinstance(sq_data, dict):
+                continue
             sub_questions.append(
                 SubQuestion(
-                    id=sq_data["id"],
-                    question=sq_data["question"],
+                    id=str(sq_data.get("id", f"sq-{len(sub_questions)+1:03d}")),
+                    question=str(sq_data.get("question", "")),
                     status="pending",
                     sources=[],
                     findings="",
@@ -94,6 +115,26 @@ class PlannerAgent:
             )
         
         return PlannerOutput(plan=sub_questions)
+
+    def _build_memory_context(self, session_memory: list[dict]) -> str:
+        """Build compact prior-session memory context for planning quality."""
+        if not session_memory:
+            return "Prior session memory: none"
+
+        lines = ["Prior session memory (reuse useful lines of inquiry, avoid duplicates):"]
+        for index, item in enumerate(session_memory, start=1):
+            query = str(item.get("query", "")).strip()
+            title = str(item.get("title", "")).strip()
+            summary = str(item.get("executive_summary", "")).strip().replace("\n", " ")
+            trimmed_summary = summary[:350] + ("..." if len(summary) > 350 else "")
+            sources_count = item.get("sources_count", 0)
+            lines.append(
+                f"{index}. Query: {query}\n"
+                f"   Report: {title}\n"
+                f"   Sources: {sources_count}\n"
+                f"   Summary: {trimmed_summary}"
+            )
+        return "\n".join(lines)
     
     def _parse_plan_output(self, content: str) -> dict[str, Any]:
         """

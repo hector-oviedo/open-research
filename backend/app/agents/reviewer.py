@@ -93,10 +93,7 @@ class ReviewerAgent:
         content = response.get("message", {}).get("content", "")
         parsed = self._parse_review(content)
         
-        # Override should_continue if at max iterations
-        should_continue = parsed.get("should_continue", False)
-        if iteration >= max_iterations:
-            should_continue = False
+        # Force finalization behavior at max iterations via graph router safeguards.
         
         return ReviewerOutput(
             gap_report=GapReport(
@@ -133,6 +130,8 @@ class ReviewerAgent:
         ]
         
         for sq in plan:
+            if not isinstance(sq, dict):
+                continue
             context_parts.append(f"- {sq.get('id')}: {sq.get('question')}")
         
         context_parts.extend([
@@ -141,6 +140,8 @@ class ReviewerAgent:
         ])
         
         for finding in findings:
+            if not isinstance(finding, dict):
+                continue
             sq_id = finding.get("sub_question_id", "unknown")
             summary = finding.get("summary", "")[:200]  # Truncate
             context_parts.append(f"- {sq_id}: {summary}...")

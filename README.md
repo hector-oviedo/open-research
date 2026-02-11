@@ -1,404 +1,281 @@
 # Deep Research System
 
-A production-grade local deep research application using multi-agent orchestration with LangGraph and Ollama. Features a real-time Mission Control dashboard for monitoring AI agents as they research any topic.
+Production-oriented local deep-research platform with:
+- multi-agent orchestration (`Planner -> Finder -> Summarizer -> Reviewer -> Writer`)
+- durable session + document persistence (SQLite on host-mounted path)
+- real-time streaming execution telemetry (SSE)
+- frontend Mission Control workspace + dedicated result screen
+- configurable per-run research controls (iterations, sources, memory, report length)
 
-![Architecture](https://img.shields.io/badge/Architecture-Orchestrator_Workers-blue)
-![LLM](https://img.shields.io/badge/LLM-gpt--oss:20b-green)
-![GPU](https://img.shields.io/badge/GPU-AMD_ROCm-orange)
-![Stack](https://img.shields.io/badge/Stack-FastAPI_React_LangGraph-purple)
+## What Is Implemented
 
----
+- Backend: FastAPI + LangGraph orchestration + Ollama adapter
+- Frontend: React + Vite + Zustand + Framer Motion
+- Persistence:
+  - session snapshots
+  - event stream history
+  - final report documents (JSON + Markdown)
+- Session memory:
+  - new runs can use recent completed sessions as planning context
+- UI:
+  - Light/Dark mode toggle
+  - bounded workspace panels (sidebar + event log aligned height)
+  - separate full result screen
+- Testing:
+  - backend test suite under `backend/tests/`
 
-## 🚀 Quick Start (How to Use)
+## Architecture
 
-### 1. Start the System
+### Runtime flow
+
+1. User starts research from frontend.
+2. Backend creates a session and starts graph execution.
+3. Graph emits events through SSE (`/api/research/{session_id}/events`).
+4. Backend persists events + session state in SQLite.
+5. Writer produces final report.
+6. Backend persists report as:
+   - `report_json`
+   - `report_markdown`
+7. Frontend opens dedicated result screen for final report.
+
+### Agent flow
+
+- `Planner`: decomposes query into sub-questions
+- `Finder`: discovers diverse sources
+- `Summarizer`: extracts evidence from fetched content
+- `Reviewer`: detects gaps and decides iteration
+- `Writer`: synthesizes final report with citations
+
+## Repository Layout
+
+```text
+backend/
+  app/
+    agents/
+    api/
+    core/
+    models/
+  tests/
+frontend/
+  src/
+    components/
+    hooks/
+    pages/
+    stores/
+    types/
+ollama/
+agent/
+```
+
+## Prerequisites
+
+- Docker + Docker Compose
+- AMD GPU + ROCm setup (for current Ollama container profile)
+- Free ports: `5173`, `8000`, `11434`
+
+## Environment Configuration
+
+1. Copy env template:
 
 ```bash
-# Clone the repository
-git clone <repo>
-cd open-research
-
-# Copy environment template
 cp .env.example .env
-
-# Start all services
-docker compose up --build -d
-
-# Monitor Ollama model download (first start only)
-docker logs -f deepresearch-ollama
-# Wait for: "✓ Model is ready to use!"
 ```
 
-### 2. Access the Dashboard
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| **🎛️ Mission Control** | http://localhost:5173 | **Main Dashboard** - Start researching here! |
-| **API Docs** | http://localhost:8000/custom-docs | Bootstrap-styled documentation |
-| **Backend API** | http://localhost:8000 | FastAPI endpoints |
-
-### 3. Run Your First Research
-
-1. Open http://localhost:5173
-2. Enter a research query (e.g., "Latest AI developments in healthcare 2024")
-3. Press **Ctrl+Enter** or click the ▶️ button
-4. Watch the 5 agents work in real-time!
-
-### 4. Understanding the Dashboard
-
-**Agent Pipeline** (left sidebar): Watch which agent is currently working
-- 🔵 **Planner** - Breaks query into sub-questions
-- 🟢 **Finder** - Discovers sources via DuckDuckGo
-- 🟡 **Summarizer** - Compresses content 10:1
-- 🟣 **Reviewer** - Checks for gaps and iterates
-- 🩷 **Writer** - Synthesizes final report
-
-**Event Log** (right): Real-time SSE stream showing agent activity
-
-**When Complete:**
-- Report appears with Executive Summary, Sections, and Sources
-- Reports render with beautiful **Markdown styling** (headers, lists, code blocks, tables)
-- Download as **Markdown** or **PDF**
-- Click any completed session in the sidebar to view past reports
-
-**Real-time Features:**
-- **Finder sources stream as discovered** - watch sources appear one-by-one
-- **Processing animation** on active agents
-- **Automatic retry** if summarizer finds no key facts (resilience)
-
----
-
-## ⚠️ The Ollama Drama (Important!)
-
-### Stop Local Ollama First!
-
-The Docker container needs exclusive access to port 11434. Stop your local Ollama:
+2. Set GPU group IDs for your machine:
 
 ```bash
-# Stop local Ollama service
-sudo systemctl stop ollama
-# or
-pkill ollama
-
-# Verify port is free
-sudo lsof -i :11434  # Should return nothing
+getent group video | cut -d: -f3
+getent group render | cut -d: -f3
 ```
 
-**Why?** The container uses ROCm GPU drivers and the local Ollama doesn't have access to the same GPU libraries inside Docker.
+3. Configure persistence path (host machine):
 
-### Port Already in Use?
+```env
+# Host path for Ollama model data
+OLLAMA_MODELS_DIR=./data/ollama
+OLLAMA_MODEL=gpt-oss:20b
+OLLAMA_CONTEXT_LENGTH=8192
+OLLAMA_KEEP_ALIVE=5m
 
-```bash
-# Find and kill the process
-sudo lsof -i :11434
-sudo kill -9 <PID>
+# Host path for backend persistent data
+BACKEND_DATA_DIR=./data/backend
+
+# Path used inside backend container
+DATABASE_PATH=/app/data/research.db
 ```
 
----
+`docker-compose.yml` maps:
 
-## 🐳 Docker Management
+- `${OLLAMA_MODELS_DIR}:/ollama-models`
+- `${BACKEND_DATA_DIR}:/app/data`
 
-### Start Everything
+This keeps both Ollama models and backend sessions/documents on your PC between restarts/redeploys.
+
+## Quick Start
+
 ```bash
 docker compose up --build -d
 ```
 
-### View Logs
-```bash
-# All services
-docker compose logs -f
+Open:
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8000`
+- Custom API docs: `http://localhost:8000/custom-docs`
 
-# Specific service
-docker logs -f deepresearch-ollama
-docker logs -f deepresearch-backend
-docker logs -f deepresearch-frontend
+Health checks:
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/api/status
 ```
 
-### Stop Everything
-```bash
-docker compose down
+## Research Runtime Options
 
-# Also remove data volumes:
-docker compose down -v
+Per-session options are sent in `POST /api/research/start`.
+
+| Option | Type | Purpose |
+|---|---|---|
+| `maxIterations` | int | Max reviewer/planner loops |
+| `maxSources` | int | Global source cap |
+| `maxSourcesPerQuestion` | int | Cap per sub-question |
+| `searchResultsPerQuery` | int | Search hits requested per query |
+| `sourceDiversity` | bool | Domain diversity enforcement |
+| `reportLength` | `short|medium|long` | Writer target length |
+| `includeSessionMemory` | bool | Include prior completed sessions |
+| `sessionMemoryLimit` | int | Max prior sessions loaded |
+| `summarizerSourceLimit` | int | Max sources deep-summarized |
+
+### Example request
+
+```bash
+curl -X POST http://localhost:8000/api/research/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Latest practical advances in retrieval-augmented generation",
+    "options": {
+      "maxIterations": 4,
+      "maxSources": 16,
+      "maxSourcesPerQuestion": 5,
+      "searchResultsPerQuery": 6,
+      "sourceDiversity": true,
+      "reportLength": "long",
+      "includeSessionMemory": true,
+      "sessionMemoryLimit": 3,
+      "summarizerSourceLimit": 8
+    }
+  }'
 ```
 
-### Rebuild After Code Changes
+## API Surface
+
+### Core endpoints
+
+- `GET /health`
+- `GET /api/status`
+- `POST /api/research/start`
+- `GET /api/research/{session_id}/events` (SSE)
+- `POST /api/research/{session_id}/stop`
+- `GET /api/research/{session_id}/status`
+- `GET /api/research/sessions`
+- `GET /api/research/sessions/{session_id}/report`
+- `GET /api/research/sessions/{session_id}/documents`
+- `GET /api/research/sessions/{session_id}/documents/{document_id}`
+
+### Development diagnostics endpoints
+
+The project currently includes `api/test/*` endpoints for validating individual agents and streaming behavior in local/dev environments.
+
+## Frontend UX Notes
+
+- Workspace preserves:
+  - sidebar with agent progress + sessions
+  - top progress tracker
+- Event log panel height is bounded to align with sidebar height.
+- Result report is rendered on a separate screen (`ResultScreen`) instead of inline with running telemetry.
+- Theme supports light/dark mode with persistent preference.
+
+## Persistence Model
+
+SQLite tables:
+
+- `sessions`
+- `session_events`
+- `session_documents`
+
+Saved documents per completed session:
+
+- `<session_id>-json` (`report_json`)
+- `<session_id>-markdown` (`report_markdown`)
+
+## Ollama Data Migration (If You Previously Used Named Volume)
+
+If older runs used Docker named volume `open-research_ollama_data`, migrate once:
+
 ```bash
-# Frontend only
+mkdir -p ./data/ollama
+docker run --rm \
+  -v open-research_ollama_data:/from \
+  -v "$(pwd)/data/ollama:/to" \
+  alpine sh -c "cp -a /from/. /to/"
+```
+
+Then set `OLLAMA_MODELS_DIR=./data/ollama` in `.env` and start normally with the bind mount.
+
+## Testing
+
+### Backend tests (recommended inside Docker)
+
+```bash
+docker compose run --no-deps --rm backend sh -lc "pip install -e '.[dev]' && PYTHONPATH=/app pytest -q"
+```
+
+### Frontend production build
+
+```bash
 docker compose build frontend
-docker compose up -d frontend
+```
 
-# Backend only
+## Operations
+
+### Start / stop
+
+```bash
+docker compose up --build -d
+docker compose down
+```
+
+### Logs
+
+```bash
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose logs -f ollama
+```
+
+### Rebuild one service
+
+```bash
 docker compose build backend
 docker compose up -d backend
 ```
 
-### Check Health
-```bash
-curl http://localhost:8000/health
-curl http://localhost:5173
-```
+## Production Hardening Checklist
 
----
+If deploying outside local machine scope, add:
 
-## 🏗️ Architecture
+- reverse proxy (TLS termination, request limits)
+- authn/authz for API + UI
+- stricter network boundaries (no public Ollama port)
+- backup strategy for `${BACKEND_DATA_DIR}`
+- centralized logging/metrics
+- CORS policy tailored to your domain topology
 
-### System Overview
+## Known Constraints
 
-![Architecture Diagram](docs/diagrams/architecture_diagram.png)
+- System is optimized for local/self-hosted operation.
+- Ollama model and ROCm requirements are hardware-dependent.
+- Full research latency depends on model speed and web source availability.
 
-*The system has 3 layers: Dashboard (React), Backend API (FastAPI + LangGraph), and Storage/Inference (SQLite + Ollama)*
+## License
 
-### The 5 Agents
-
-| Agent | Color | Role | Description |
-|-------|-------|------|-------------|
-| 🔵 **Planner** | Blue | Query Decomposition | Breaks complex queries into 6-8 sub-questions |
-| 🟢 **Finder** | Green | Source Discovery | Discovers diverse sources via DuckDuckGo (streams in real-time) |
-| 🟡 **Summarizer** | Amber | Content Compression | 10:1 compression with key facts extraction (auto-retry on failure) |
-| 🟣 **Reviewer** | Violet | Quality Control | Detects gaps, triggers iteration loops |
-| 🩷 **Writer** | Pink | Report Synthesis | Professional report with validated citations |
-
-**Resilience Features:**
-- **Finder Streaming**: Sources appear one-by-one as discovered with clickable link icons
-- **Summarizer Retry**: If 0 key facts extracted, automatically extends search and retries
-- **Citation Validation**: All citations are validated against actual sources (no hallucination)
-- **Complete Source Metadata**: Each source includes id, url, title, domain, reliability, and confidence
-
-### Data Flow
-
-```
-User Query → Planner → Finder → Summarizer → [0 facts?] → Finder (retry)
-                                              ↓
-                                         Reviewer → [Gaps?] → Planner (iterate)
-                                              ↓
-                                           Writer → Report
-```
-
-**Resilience Loops:**
-- **Summarizer Retry:** If 0 key facts extracted, loops back to Finder for extended search (max 2 retries)
-- **Reviewer Iteration:** If gaps detected and max iterations not reached, loops back to Planner for deeper investigation
-
----
-
-## 🎛️ Dashboard Features
-
-### Real-time Monitoring
-- **Agent Pipeline Visualization** - See which agent is active with processing animation
-- **Progress Bar** - Overall completion percentage with shimmer effect
-- **Event Log** - Live SSE events with color-coding per agent
-- **Finder Streaming** - Watch sources appear one-by-one as discovered
-- **Session List** - Auto-refreshing list of all research sessions
-
-### Report Viewer
-- Executive Summary with **Markdown rendering**
-- Multiple detailed sections with **formatted headers, lists, code blocks**
-- **Sources displayed as bullet list** with complete metadata
-- **Live citation links**: Citations appear as `[🔗 Source Title](URL)` clickable links
-- Source citations with reliability ratings (High/Medium/Low)
-- **Clickable link icons (🔗)** inline in the text - click any citation to open source
-- **Validated citations** - all citations link to actual sources
-- Confidence assessment
-- Download as Markdown or PDF
-
-### Source Link Component
-Throughout the dashboard, sources are displayed with:
-- **Favicon** from the source domain
-- **Clickable title** that opens the source in a new tab
-- **Domain name** extracted from URL
-- **Reliability badge** (High/Medium/Low)
-- **External link icon** on hover
-
-### Keyboard Shortcuts
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl + Enter` | Start research |
-
----
-
-## 🧪 API Testing
-
-### Health Checks
-```bash
-# System health
-curl http://localhost:8000/health
-
-# API status
-curl http://localhost:8000/api/status
-```
-
-### Test Individual Agents
-```bash
-# Test Planner Agent
-curl -X POST http://localhost:8000/api/test/planner
-
-# Test Source Finder
-curl -X POST http://localhost:8000/api/test/finder
-
-# Test Full Graph (takes 5-10 min)
-curl -X POST http://localhost:8000/api/test/graph
-```
-
-### Research API
-```bash
-# Start research
-curl -X POST http://localhost:8000/api/research/start \
-  -H "Content-Type: application/json" \
-  -d '{"query": "AI in healthcare 2024"}'
-
-# Stream events (SSE)
-curl http://localhost:8000/api/research/{session_id}/events
-
-# Stop research
-curl -X POST http://localhost:8000/api/research/{session_id}/stop
-
-# Get report
-curl http://localhost:8000/api/research/sessions/{session_id}/report
-```
-
----
-
-## 🔧 GPU Configuration (Strix Halo / RDNA 3.5)
-
-For AMD Ryzen AI Max+ 395 (gfx1151):
-
-```bash
-# Find your GPU group IDs
-getent group video | cut -d: -f3   # e.g., 44
-getent group render | cut -d: -f3  # e.g., 991
-
-# Copy and edit environment
-cp .env.example .env
-# Edit VIDEO_GID and RENDER_GID to match your system
-```
-
-Your `.env` should contain:
-```env
-VIDEO_GID=44
-RENDER_GID=991
-HSA_OVERRIDE_GFX_VERSION=11.5.1
-```
-
-Verify GPU detection:
-```bash
-docker logs deepresearch-ollama | grep "inference compute"
-# Should show: library=ROCm compute=gfx1151
-```
-
----
-
-## 📁 Project Structure
-
-```
-open-research/
-├── docker-compose.yml          # Service orchestration
-├── .env.example                # Configuration template
-├── start.sh                    # Automation script
-│
-├── ollama/                     # Ollama service with auto-download
-│   ├── Dockerfile
-│   └── entrypoint.sh
-│
-├── backend/                    # FastAPI + LangGraph
-│   ├── app/
-│   │   ├── api/routes.py       # HTTP endpoints + SSE
-│   │   ├── core/
-│   │   │   ├── config.py       # Pydantic Settings
-│   │   │   ├── graph.py        # LangGraph workflow
-│   │   │   └── research_manager.py
-│   │   └── agents/             # 5 AI agents
-│   │       ├── planner.py
-│   │       ├── finder.py
-│   │       ├── summarizer.py
-│   │       ├── reviewer.py
-│   │       └── writer.py
-│   └── main.py
-│
-├── frontend/                   # React + Vite + Tailwind
-│   └── src/
-│       ├── components/
-│       │   ├── AgentStatus.tsx
-│       │   ├── ReportViewer.tsx
-│       │   ├── SessionList.tsx
-│       │   ├── SourceLink.tsx      # Reusable source link component
-│       │   ├── SourceViewer.tsx    # Source grid display
-│       │   ├── TraceLog.tsx
-│       │   └── ui/                 # Atomic UI components
-│       │       ├── Button.tsx
-│       │       ├── Card.tsx
-│       │       └── Badge.tsx
-│       ├── hooks/
-│       │   ├── useAgentStream.ts   # SSE streaming
-│       │   └── useResearch.ts      # Research API calls
-│       ├── stores/
-│       │   └── researchStore.ts    # Zustand state
-│       ├── types/
-│       │   └── index.ts            # TypeScript types
-│       └── pages/
-│           └── MissionControl.tsx  # Main dashboard
-│
-
-```
-
----
-
-## 🔧 Troubleshooting
-
-### ROCm GPU Not Detected
-```bash
-# Check GPU visibility
-rocm-smi
-
-# Verify Ollama logs
-docker logs deepresearch-ollama | grep -i "rocm\|gpu"
-```
-
-### Model Download Stuck
-```bash
-# Monitor download progress
-docker logs -f deepresearch-ollama
-
-# Restart Ollama container
-docker compose restart ollama
-```
-
-### Frontend Not Loading
-```bash
-# Check logs
-docker logs deepresearch-frontend
-
-# Rebuild
-docker compose build frontend
-docker compose up -d frontend
-```
-
-### Backend Errors
-```bash
-# Check logs
-docker logs deepresearch-backend
-
-# Test API directly
-curl http://localhost:8000/health
-```
-
----
-
-## 📊 Development Status
-
-**🎉 PROJECT COMPLETE - All 6 Phases Delivered!**
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| **Phase 0** | ✅ Complete | Infrastructure: Docker, GPU support, auto-download |
-| **Phase 1** | ✅ Complete | Backend Core: FastAPI, config, Ollama adapter |
-| **Phase 2** | ✅ Complete | Planner Agent + LangGraph setup |
-| **Phase 3** | ✅ Complete | All 5 Agents + Full Graph Assembly |
-| **Phase 4** | ✅ Complete | Streaming & Interruption (SSE) |
-| **Phase 5** | ✅ Complete | Frontend Dashboard |
-| **Phase 6** | ✅ Complete | Polish: Report viewer, sessions, PDF export |
-
----
-
-## 📜 License
-
-MIT
+Use according to your project license policy.

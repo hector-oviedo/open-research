@@ -24,17 +24,27 @@ services:
     security_opt:
       - seccomp:unconfined
     volumes:
-      - ollama_data:/root/.ollama
+      - ${OLLAMA_MODELS_DIR:-./data/ollama}:/ollama-models
     ports:
       - "11434:11434"
     environment:
-      - OLLAMA_MODEL=gpt-oss:20b
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gpt-oss:20b}
+      - OLLAMA_MODELS=/ollama-models
+      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH:-8192}
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_KV_CACHE_TYPE=q8_0
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-5m}
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - HSA_OVERRIDE_GFX_VERSION=11.5.1
+      - HIP_VISIBLE_DEVICES=0
+      - AMD_SERIALIZE_KERNEL=1
     healthcheck:
-      test: ["CMD", "bash", "-c", "ollama list | grep -q gpt-oss"]
+      test: ["CMD", "bash", "-c", "ollama list | grep -q \"$OLLAMA_MODEL\""]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 120s
+      retries: 120
+      start_period: 60s
     networks:
       - deepresearch-net
 
@@ -47,18 +57,17 @@ services:
       dockerfile: Dockerfile
     container_name: deepresearch-backend
     volumes:
-      - backend_data:/app/data
-      - ./backend:/app
+      - ${BACKEND_DATA_DIR:-./data/backend}:/app/data
     ports:
       - "8000:8000"
     environment:
       - BACKEND_HOST=0.0.0.0
       - BACKEND_PORT=8000
-      - DATABASE_PATH=/app/data/research.db
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/research.db}
       - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_MODEL=gpt-oss:20b
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gpt-oss:20b}
       - LLM_BASE_URL=http://ollama:11434/v1
-      - LLM_MODEL=gpt-oss:20b
+      - LLM_MODEL=${OLLAMA_MODEL:-gpt-oss:20b}
       - LLM_TEMPERATURE=0.7
       - LLM_MAX_TOKENS=4096
       - MAX_ITERATIONS=10
@@ -77,7 +86,7 @@ services:
     networks:
       - deepresearch-net
     restart: unless-stopped
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
   # ===========================================================================
   # FRONTEND - Vite + React + TypeScript
@@ -87,9 +96,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: deepresearch-frontend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     ports:
       - "5173:5173"
     environment:
@@ -99,16 +105,6 @@ services:
     networks:
       - deepresearch-net
     restart: unless-stopped
-    command: npm run dev
-
-# =============================================================================
-# VOLUMES - Persistent Data
-# =============================================================================
-volumes:
-  ollama_data:
-    driver: local
-  backend_data:
-    driver: local
 
 # =============================================================================
 # NETWORKS - Internal Communication

@@ -4,7 +4,7 @@
  * Displays the final research report with markdown rendering
  * and download functionality (Markdown + PDF).
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, FileCode } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -138,7 +138,7 @@ const MarkdownLink = ({ href, children }: { href?: string; children?: React.Reac
       href={href} 
       target="_blank" 
       rel="noopener noreferrer"
-      className="text-blue-400 hover:text-blue-300 hover:underline"
+      className="text-[hsl(var(--primary))] hover:text-[hsl(var(--accent))] hover:underline"
     >
       {children}
     </a>
@@ -308,21 +308,40 @@ ${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - $
     URL.revokeObjectURL(url);
   };
 
-  // PDF Document data
-  const pdfData: PDFReportProps = {
-    title,
-    date: new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+  const reportDate = useMemo(
+    () =>
+      new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+    [],
+  );
+
+  // PDF document payload must be stable to avoid repeated "Generating..." flashes.
+  const pdfData: PDFReportProps = useMemo(
+    () => ({
+      title,
+      date: reportDate,
+      word_count,
+      sources_count: sources_used.length,
+      executive_summary,
+      sections,
+      sources: sources_used,
+      confidence_assessment,
     }),
-    word_count,
-    sources_count: sources_used.length,
-    executive_summary,
-    sections,
-    sources: sources_used,
-    confidence_assessment,
-  };
+    [
+      confidence_assessment,
+      executive_summary,
+      reportDate,
+      sections,
+      sources_used,
+      title,
+      word_count,
+    ],
+  );
+
+  const pdfDocument = useMemo(() => <ReportPDFDocument {...pdfData} />, [pdfData]);
 
   return (
     <motion.div
@@ -336,7 +355,7 @@ ${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - $
         headerAction={
           <div className="flex items-center gap-2">
             <PDFDownloadLink
-              document={<ReportPDFDocument {...pdfData} />}
+              document={pdfDocument}
               fileName={`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`}
             >
               {({ loading }) => (
@@ -354,8 +373,8 @@ ${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - $
         }
       >
         {/* Executive Summary */}
-        <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">
-          <h4 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wider">
+        <div className="mb-6 rounded-lg border border-[hsl(var(--border)/0.6)] bg-[hsl(var(--card)/0.7)] p-4">
+          <h4 className="mb-2 text-sm font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
             Executive Summary
           </h4>
           <div className="prose prose-invert prose-sm max-w-none">
@@ -371,8 +390,8 @@ ${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - $
         {/* Sections */}
         <div className="space-y-6">
           {sections.map((section, index) => (
-            <div key={index} className="border-b border-slate-800 pb-6 last:border-0">
-              <h4 className="text-lg font-semibold text-white mb-3">{section.heading}</h4>
+            <div key={index} className="border-b border-[hsl(var(--border)/0.65)] pb-6 last:border-0">
+              <h4 className="mb-3 text-lg font-semibold text-[hsl(var(--foreground))]">{section.heading}</h4>
               <div className="prose prose-invert prose-sm max-w-none">
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}
@@ -386,13 +405,13 @@ ${sources_used.map((s, i) => `${i + 1}. [${s.title || 'Untitled'}](${s.url}) - $
         </div>
 
         {/* Sources */}
-        <div className="mt-8 pt-6 border-t border-slate-800">
+        <div className="mt-8 border-t border-[hsl(var(--border)/0.65)] pt-6">
           <SourceViewer sources={sources_used} />
         </div>
 
         {/* Confidence Assessment */}
-        <div className="mt-6 p-4 bg-slate-800/30 rounded-lg">
-          <h4 className="text-sm font-medium text-slate-400 mb-2">Confidence Assessment</h4>
+        <div className="mt-6 rounded-lg bg-[hsl(var(--secondary)/0.55)] p-4">
+          <h4 className="mb-2 text-sm font-medium text-[hsl(var(--muted-foreground))]">Confidence Assessment</h4>
           <div className="prose prose-invert prose-sm max-w-none">
             <ReactMarkdown 
               remarkPlugins={[remarkGfm]}

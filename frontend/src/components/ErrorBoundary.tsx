@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-4">
+        <div className="min-h-screen bg-[hsl(var(--background))] flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -50,8 +50,8 @@ export class ErrorBoundary extends Component<Props, State> {
                 <AlertTriangle className="w-8 h-8 text-red-400" />
               </div>
               
-              <h2 className="text-2xl font-bold text-white mb-2">Something went wrong</h2>
-              <p className="text-slate-400 mb-6">
+              <h2 className="mb-2 text-2xl font-bold text-[hsl(var(--foreground))]">Something went wrong</h2>
+              <p className="mb-6 text-[hsl(var(--muted-foreground))]">
                 An error occurred in the application. You can try refreshing the page.
               </p>
               

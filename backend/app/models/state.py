@@ -14,7 +14,7 @@ State Flow:
 
 from typing import TypedDict, Annotated, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def merge_lists(left: list, right: list) -> list:
@@ -52,6 +52,7 @@ class Source(TypedDict, total=False):
     content: str
     domain: str
     confidence: float
+    reliability: str
     timestamp: str
 
 
@@ -130,8 +131,8 @@ class ResearchState(TypedDict, total=False):
         findings: Summarized findings by sub-question
         
         # Review
-        gap_report: Reviewer's gap assessment
-        iteration_count: Number of planning iterations
+        gaps: Reviewer's gap assessment
+        iteration: Number of planning iterations
         
         # Output
         final_report: The synthesized final report
@@ -153,15 +154,20 @@ class ResearchState(TypedDict, total=False):
     findings: Annotated[list[dict], merge_lists]
     
     # Review
-    gap_report: GapReport | None
-    iteration_count: int
+    gaps: GapReport | None
+    iteration: int
     
     # Output
-    final_report: str | None
+    final_report: dict | None
     
     # Metadata
     session_id: str
     started_at: str
+    status: str
+    options: dict
+    session_memory: list[dict]
+    needs_finder_retry: bool
+    finder_retry_count: int
     trace: Annotated[list[TraceEvent], lambda x, y: x + y]
     error: str | None
 
@@ -192,7 +198,7 @@ class ReviewerOutput(TypedDict):
 
 class WriterOutput(TypedDict):
     """Output from the Writer agent."""
-    final_report: str
+    final_report: dict
 
 
 # ============================================================================
@@ -215,11 +221,16 @@ def create_initial_state(query: str, session_id: str) -> ResearchState:
         plan=[],
         sources=[],
         findings=[],
-        gap_report=None,
-        iteration_count=0,
+        gaps=None,
+        iteration=0,
         final_report=None,
         session_id=session_id,
-        started_at=datetime.utcnow().isoformat(),
+        started_at=datetime.now(timezone.utc).isoformat(),
+        status="idle",
+        options={},
+        session_memory=[],
+        needs_finder_retry=False,
+        finder_retry_count=0,
         trace=[],
         error=None,
     )
@@ -244,7 +255,7 @@ def add_trace_event(
         ResearchState: Updated state with new trace event
     """
     event_data = TraceEvent(
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         node=node,
         event=event,
         details=details or {},
